@@ -21,15 +21,28 @@ except ImportError as e:
     st.write("Please make sure your generator code is in a file named 'idea_agent.py' and reflection code in 'reflection_agent.py'")
     st.stop()
 
-# Import or initialize your client
+# # Import or initialize your client
+# try:
+#     from config import google_key
+#     from google import genai
+#     client = genai.Client(api_key=google_key)
+# except ImportError as e:
+#     st.error(f"Client Import Error: {e}")
+#     st.write("Please make sure your API configuration is set up correctly")
+#     client = None
+# At the beginning of app.py, modify your API key loading
 try:
-    from config import google_key
-    from google import genai
+    # First try to get from secrets (for deployment)
+    google_key = st.secrets["google_api_key"]
     client = genai.Client(api_key=google_key)
-except ImportError as e:
-    st.error(f"Client Import Error: {e}")
-    st.write("Please make sure your API configuration is set up correctly")
-    client = None
+except:
+    # Fall back to local config for development
+    try:
+        from config import google_key
+        client = genai.Client(api_key=google_key)
+    except ImportError:
+        st.error("No API key found. Please configure your API key.")
+        client = None
 
 def initialize_session_state():
     """Initialize all session state variables if they don't exist"""
