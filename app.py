@@ -43,8 +43,10 @@ def initialize_session_state():
         st.session_state.feedback = None
     if 'improved_idea' not in st.session_state:
         st.session_state.improved_idea = None
+    if 'show_process' not in st.session_state:
+        st.session_state.show_process = False
     if 'app_stage' not in st.session_state:
-        # Possible values: 'start', 'idea_generated', 'feedback_received', 'idea_improved'
+        # Possible values: 'start', 'completed'
         st.session_state.app_stage = 'start'
     if 'interests' not in st.session_state:
         st.session_state.interests = []
@@ -52,15 +54,16 @@ def initialize_session_state():
         st.session_state.resources = ["Public astronomical datasets"]
     if 'additional_context' not in st.session_state:
         st.session_state.additional_context = ""
-    # Action triggers
     if 'trigger_generate' not in st.session_state:
         st.session_state.trigger_generate = False
-    if 'trigger_feedback' not in st.session_state:
-        st.session_state.trigger_feedback = False
-    if 'trigger_improve' not in st.session_state:
-        st.session_state.trigger_improve = False
-    if 'trigger_reset' not in st.session_state:
-        st.session_state.trigger_reset = False
+
+def reset_state():
+    """Reset the application state for a new idea generation"""
+    st.session_state.current_idea = None
+    st.session_state.feedback = None
+    st.session_state.improved_idea = None
+    st.session_state.show_process = False
+    st.session_state.app_stage = 'start'
 
 def update_interests():
     """Update selected interests from checkboxes"""
@@ -87,14 +90,52 @@ def update_resources():
 def set_generate_trigger():
     st.session_state.trigger_generate = True
 
-def set_feedback_trigger():
-    st.session_state.trigger_feedback = True
+def toggle_process_view():
+    st.session_state.show_process = not st.session_state.show_process
 
-def set_improve_trigger():
-    st.session_state.trigger_improve = True
-
-def set_reset_trigger():
-    st.session_state.trigger_reset = True
+def run_full_pipeline():
+    """Run the entire idea generation, feedback, and improvement pipeline"""
+    with st.spinner("Generating research idea..."):
+        try:
+            # Step 1: Generate initial idea
+            if st.session_state.idea_agent:
+                initial_idea = st.session_state.idea_agent.generate_initial_idea(
+                    student_interests=st.session_state.interests,
+                    skill_level=st.session_state.skill_level,
+                    time_frame=st.session_state.time_frame,
+                    available_resources=st.session_state.resources,
+                    additional_context=st.session_state.additional_context
+                )
+            else:
+                initial_idea = generate_research_idea(
+                    student_interests=st.session_state.interests,
+                    skill_level=st.session_state.skill_level,
+                    time_frame=st.session_state.time_frame,
+                    available_resources=st.session_state.resources,
+                    additional_context=st.session_state.additional_context
+                )
+            
+            st.session_state.current_idea = initial_idea
+            
+            # Step 2: Get feedback
+            with st.spinner("Getting expert feedback..."):
+                feedback = st.session_state.reflection_agent.evaluate_proposal(initial_idea)
+                st.session_state.feedback = feedback
+            
+            # Step 3: Improve idea
+            with st.spinner("Refining research idea..."):
+                improved_idea = st.session_state.idea_agent.improve_idea(feedback.__dict__)
+                st.session_state.improved_idea = improved_idea
+            
+            # Update app stage
+            st.session_state.app_stage = 'completed'
+            
+            return True
+            
+        except Exception as e:
+            st.error(f"Error in research idea pipeline: {str(e)}")
+            st.exception(e)
+            return False
 
 def main():
     st.set_page_config(
@@ -108,80 +149,10 @@ def main():
     # Initialize session state
     initialize_session_state()
     
-    # Handle reset first if triggered
-    if st.session_state.trigger_reset:
-        st.session_state.current_idea = None
-        st.session_state.feedback = None
-        st.session_state.improved_idea = None
-        st.session_state.app_stage = 'start'
-        st.session_state.trigger_reset = False
-    
-    # Handle generate action if triggered
+    # Handle generate trigger - this runs the full pipeline
     if st.session_state.trigger_generate:
-        with st.spinner("Generating research idea..."):
-            try:
-                if st.session_state.idea_agent:
-                    # Use stateful agent
-                    research_idea = st.session_state.idea_agent.generate_initial_idea(
-                        student_interests=st.session_state.interests,
-                        skill_level=st.session_state.skill_level,
-                        time_frame=st.session_state.time_frame,
-                        available_resources=st.session_state.resources,
-                        additional_context=st.session_state.additional_context
-                    )
-                else:
-                    # Use standalone function
-                    research_idea = generate_research_idea(
-                        student_interests=st.session_state.interests,
-                        skill_level=st.session_state.skill_level,
-                        time_frame=st.session_state.time_frame,
-                        available_resources=st.session_state.resources,
-                        additional_context=st.session_state.additional_context
-                    )
-                
-                # Store the generated idea and update app stage
-                st.session_state.current_idea = research_idea
-                st.session_state.app_stage = 'idea_generated'
-            except Exception as e:
-                st.error(f"Error generating research idea: {str(e)}")
-                st.exception(e)
-        
-        # Reset trigger
+        run_full_pipeline()
         st.session_state.trigger_generate = False
-    
-    # Handle feedback action if triggered
-    if st.session_state.trigger_feedback and st.session_state.current_idea:
-        with st.spinner("Getting expert feedback..."):
-            try:
-                # Get feedback using the reflection agent
-                feedback = st.session_state.reflection_agent.evaluate_proposal(st.session_state.current_idea)
-                
-                # Store the feedback and update app stage
-                st.session_state.feedback = feedback
-                st.session_state.app_stage = 'feedback_received'
-            except Exception as e:
-                st.error(f"Error getting expert feedback: {str(e)}")
-                st.exception(e)
-        
-        # Reset trigger
-        st.session_state.trigger_feedback = False
-    
-    # Handle improve action if triggered
-    if st.session_state.trigger_improve and st.session_state.feedback:
-        with st.spinner("Improving research idea..."):
-            try:
-                # Improve the idea using the feedback
-                improved_idea = st.session_state.idea_agent.improve_idea(st.session_state.feedback.__dict__)
-                
-                # Store the improved idea and update app stage
-                st.session_state.improved_idea = improved_idea
-                st.session_state.app_stage = 'idea_improved'
-            except Exception as e:
-                st.error(f"Error improving idea: {str(e)}")
-                st.exception(e)
-        
-        # Reset trigger
-        st.session_state.trigger_improve = False
     
     # Sidebar for inputs and actions
     with st.sidebar:
@@ -262,63 +233,54 @@ def main():
             key="additional_context"
         )
         
-        # Action Buttons - these are always displayed but conditionally enabled
+        # Action Buttons
         st.header("Actions")
         
-        # Generate button is always enabled
-        st.button("Generate Research Idea", 
-                 on_click=set_generate_trigger, 
-                 type="primary",
-                 key="btn_generate")
-        
-        # Feedback button enabled if we have a current idea
-        feedback_disabled = st.session_state.app_stage not in ['idea_generated', 'feedback_received', 'idea_improved']
-        st.button("Get Expert Feedback", 
-                 on_click=set_feedback_trigger, 
-                 disabled=feedback_disabled,
-                 type="secondary",
-                 key="btn_feedback")
-        
-        # Improve button enabled if we have feedback
-        improve_disabled = st.session_state.app_stage not in ['feedback_received', 'idea_improved']
-        st.button("Improve Research Idea", 
-                 on_click=set_improve_trigger, 
-                 disabled=improve_disabled,
-                 type="secondary",
-                 key="btn_improve")
+        # Single button to run the entire pipeline
+        st.button(
+            "Generate Research Idea", 
+            on_click=set_generate_trigger, 
+            type="primary",
+            key="btn_generate"
+        )
         
         # Reset button
-        st.button("Start Over", 
-                 on_click=set_reset_trigger, 
-                 key="btn_reset")
-        
-        # Debug information
-        with st.expander("Debug Info"):
-            st.write(f"App Stage: {st.session_state.app_stage}")
-            st.write(f"Current Idea: {'Present' if st.session_state.current_idea else 'None'}")
-            st.write(f"Feedback: {'Present' if st.session_state.feedback else 'None'}")
-            st.write(f"Improved Idea: {'Present' if st.session_state.improved_idea else 'None'}")
-            st.write(f"Interests: {st.session_state.interests}")
-            st.write(f"Resources: {st.session_state.resources}")
+        st.button(
+            "Start Over", 
+            on_click=reset_state, 
+            key="btn_reset"
+        )
     
-    # Main content area - displays based on app stage
+    # Main content area
     if st.session_state.app_stage == 'start':
         # Show welcome message and instructions
         display_welcome_page()
     
-    elif st.session_state.app_stage == 'idea_generated' or st.session_state.app_stage in ['feedback_received', 'idea_improved']:
-        # Display the original idea
-        st.subheader("📝 Generated Research Idea", divider="rainbow")
-        display_research_idea(st.session_state.current_idea)
+    elif st.session_state.app_stage == 'completed':
+        # Display only the improved idea by default
+        if not st.session_state.show_process:
+            st.subheader("⭐ Refined Research Idea", divider="rainbow")
+            display_research_idea(st.session_state.improved_idea)
+            
+            # Add button to toggle detailed process view
+            st.button(
+                "Show Development Process", 
+                on_click=toggle_process_view,
+                key="btn_show_process"
+            )
         
-        # If we have feedback, display it
-        if st.session_state.app_stage in ['feedback_received', 'idea_improved']:
+        # Display the full process if requested
+        else:
+            # Display the original idea
+            st.subheader("📝 Initial Research Idea", divider="rainbow")
+            display_research_idea(st.session_state.current_idea)
+            
+            # Display the feedback
             st.subheader("🔍 Expert Feedback", divider="rainbow")
             display_feedback(st.session_state.feedback)
-        
-        # If we have an improved idea, display it
-        if st.session_state.app_stage == 'idea_improved':
-            st.subheader("⭐ Improved Research Idea", divider="rainbow")
+            
+            # Display the improved idea
+            st.subheader("⭐ Refined Research Idea", divider="rainbow")
             display_research_idea(st.session_state.improved_idea)
             
             # Display comparison
@@ -326,27 +288,36 @@ def main():
             display_comparison(st.session_state.current_idea, 
                               st.session_state.improved_idea, 
                               st.session_state.feedback)
+            
+            # Add button to hide the detailed process
+            st.button(
+                "Hide Development Process", 
+                on_click=toggle_process_view,
+                key="btn_hide_process"
+            )
 
 def display_welcome_page():
     """Show welcome message and instructions"""
     st.markdown("""
     ## Welcome to the Astronomy Research Idea Generator
     
-    This tool helps incoming graduate students explore potential research directions in astronomy.
+    This tool helps astronomy students explore potential research directions by generating customized research proposals.
     
     ### How to use:
     1. Select your research interests in the sidebar
     2. Adjust your skill level and intended research timeframe
     3. Select available resources you have access to
     4. Add any additional context about yourself or interests (optional)
-    5. Click "Generate Research Idea" to get a personalized research suggestion
-    6. Get expert feedback on your idea
-    7. Improve your idea based on the feedback
+    5. Click "Generate Research Idea" to get a refined research proposal
+    6. Use the "Show Development Process" button to see how the idea was improved
     
     ### About this tool:
-    This generator uses an LLM to create contextually relevant and achievable research ideas
-    based on current challenges in various astronomy subfields. The expert feedback system
-    evaluates the scientific validity and methodology of your idea, and helps you improve it.
+    This tool uses an AI system to:
+    1. Generate an initial research idea based on your interests and resources
+    2. Evaluate that idea with expert astronomical knowledge
+    3. Refine the idea based on scientific feedback
+    
+    You'll receive a polished research idea that's both scientifically sound and feasible for your skill level and timeframe.
     """)
     
     # Display sample subfields
@@ -404,12 +375,12 @@ def display_research_idea(idea):
     st.write(", ".join(idea.get("resources_needed", [])))
     
     # Add export options
-    version_tag = f"v{idea.get('version', '1')}" if 'version' in idea else "original"
-    if st.button(f"Export {version_tag} as JSON", key=f"export_{idea.get('title', '')[:10]}_{version_tag}"):
+    version_tag = f"v{idea.get('version', '1')}" if 'version' in idea else "research_idea"
+    if st.button(f"Export as JSON", key=f"export_{idea.get('title', '')[:10]}_{version_tag}"):
         st.download_button(
             label="Download JSON",
             data=json.dumps(idea, indent=2),
-            file_name=f"astronomy_research_idea_{version_tag}.json",
+            file_name=f"astronomy_{version_tag}.json",
             mime="application/json"
         )
 
@@ -545,24 +516,24 @@ def display_comparison(original_idea, improved_idea, feedback):
         return
     
     # Title comparison
-    st.subheader("1. Title Comparison")
+    st.subheader("1. Title Change")
     col1, col2 = st.columns(2)
     with col1:
         st.write("**Original:**")
         st.write(original_idea['title'])
     with col2:
-        st.write("**Improved:**")
+        st.write("**Refined:**")
         st.write(improved_idea['title'])
     
     # Research Question comparison
-    st.subheader("2. Research Question Comparison")
+    st.subheader("2. Research Question Refinement")
     col1, col2 = st.columns(2)
     with col1:
         st.write("**Original:**")
         original_question = original_idea['idea']['Research Question']
         st.write(original_question[:300] + "..." if len(original_question) > 300 else original_question)
     with col2:
-        st.write("**Improved:**")
+        st.write("**Refined:**")
         improved_question = improved_idea['idea']['Research Question']
         st.write(improved_question[:300] + "..." if len(improved_question) > 300 else improved_question)
     
@@ -591,7 +562,7 @@ def display_comparison(original_idea, improved_idea, feedback):
         st.write("No specific methodological concerns were identified.")
     
     # Recommendations Implemented
-    st.subheader("5. Recommendations Implemented")
+    st.subheader("5. Expert Recommendations Implemented")
     if hasattr(feedback, 'recommendations') and feedback.recommendations:
         for i, rec in enumerate(feedback.recommendations, 1):
             st.write(f"✓ {rec}")
