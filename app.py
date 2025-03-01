@@ -13,9 +13,9 @@ asyncio.set_event_loop(loop)
 
 # Import your generator function and agents
 try:
-    from idea_agent import IdeaAgent, generate_research_idea
+    from idea_agent import IdeaAgent, generate_research_idea, initialize_client as init_idea_client
     from subfields import ASTRONOMY_SUBFIELDS
-    from reflection_agent import AstronomyReflectionAgent, ProposalFeedback
+    from reflection_agent import AstronomyReflectionAgent, ProposalFeedback, initialize_client as init_reflection_client
 except ImportError as e:
     st.error(f"Import Error: {e}")
     st.write("Please make sure your generator code is in a file named 'idea_agent.py' and reflection code in 'reflection_agent.py'")
@@ -30,26 +30,22 @@ except ImportError as e:
 #     st.error(f"Client Import Error: {e}")
 #     st.write("Please make sure your API configuration is set up correctly")
 #     client = None
-# At the beginning of app.py, modify your API key loading
+
+# Import Google GenAI
 try:
-    # First try to get from secrets (for deployment)
-    google_key = st.secrets["google_api_key"]
-    client = genai.Client(api_key=google_key)
-except:
-    # Fall back to local config for development
-    try:
-        from config import google_key
-        client = genai.Client(api_key=google_key)
-    except ImportError:
-        st.error("No API key found. Please configure your API key.")
-        client = None
+    from google import genai
+except ImportError:
+    st.error("Could not import Google GenerativeAI. Please install it with: pip install google-generativeai")
+    st.stop()
 
 def initialize_session_state():
     """Initialize all session state variables if they don't exist"""
+    if 'api_key' not in st.session_state:
+        st.session_state.api_key = ""
     if 'idea_agent' not in st.session_state:
-        st.session_state.idea_agent = IdeaAgent(client) if client else None
+        st.session_state.idea_agent = None
     if 'reflection_agent' not in st.session_state:
-        st.session_state.reflection_agent = AstronomyReflectionAgent(client) if client else None
+        st.session_state.reflection_agent = None
     if 'current_idea' not in st.session_state:
         st.session_state.current_idea = None
     if 'feedback' not in st.session_state:
@@ -108,47 +104,70 @@ def toggle_process_view():
 
 def run_full_pipeline():
     """Run the entire idea generation, feedback, and improvement pipeline"""
-    with st.spinner("Generating research idea..."):
-        try:
-            # Step 1: Generate initial idea
-            if st.session_state.idea_agent:
-                initial_idea = st.session_state.idea_agent.generate_initial_idea(
-                    student_interests=st.session_state.interests,
-                    skill_level=st.session_state.skill_level,
-                    time_frame=st.session_state.time_frame,
-                    available_resources=st.session_state.resources,
-                    additional_context=st.session_state.additional_context
-                )
-            else:
-                initial_idea = generate_research_idea(
-                    student_interests=st.session_state.interests,
-                    skill_level=st.session_state.skill_level,
-                    time_frame=st.session_state.time_frame,
-                    available_resources=st.session_state.resources,
-                    additional_context=st.session_state.additional_context
-                )
+    # First check if we have valid agents
+    if not st.session_state.idea_agent or not st.session_state.reflection_agent:
+        st.error("API client not initialized. Please enter a valid API key.")
+        return False
+
+    try:
+        # Step 1: Generate initial idea
+        with st.spinner("Generating initial research idea..."):
+            initial_idea = st.session_state.idea_agent.generate_initial_idea(
+                student_interests=st.session_state.interests,
+                skill_level=st.session_state.skill_level,
+                time_frame=st.session_state.time_frame,
+                available_resources=st.session_state.resources,
+                additional_context=st.session_state.additional_context
+            )
             
+            if not initial_idea:
+                st.error("Failed to generate initial research idea.")
+                return False
+                
             st.session_state.current_idea = initial_idea
+        
+        # Step 2: Get feedback
+        with st.spinner("Getting expert feedback on the idea..."):
+            feedback = st.session_state.reflection_agent.evaluate_proposal(initial_idea)
             
-            # Step 2: Get feedback
-            with st.spinner("Getting expert feedback..."):
-                feedback = st.session_state.reflection_agent.evaluate_proposal(initial_idea)
-                st.session_state.feedback = feedback
+            if not feedback:
+                st.error("Failed to get expert feedback.")
+                # We can still continue with just the initial idea
+                st.session_state.app_stage = 'idea_generated'
+                return False
+                
+            st.session_state.feedback = feedback
+        
+        # Step 3: Improve idea
+        with st.spinner("Refining research idea based on feedback..."):
+            improved_idea = st.session_state.idea_agent.improve_idea(feedback.__dict__)
             
-            # Step 3: Improve idea
-            with st.spinner("Refining research idea..."):
-                improved_idea = st.session_state.idea_agent.improve_idea(feedback.__dict__)
-                st.session_state.improved_idea = improved_idea
-            
-            # Update app stage
-            st.session_state.app_stage = 'completed'
-            
-            return True
-            
-        except Exception as e:
-            st.error(f"Error in research idea pipeline: {str(e)}")
+            if not improved_idea:
+                st.error("Failed to refine the research idea.")
+                # We still have the initial idea and feedback
+                st.session_state.app_stage = 'feedback_received'
+                return False
+                
+            st.session_state.improved_idea = improved_idea
+        
+        # Update app stage to completed
+        st.session_state.app_stage = 'completed'
+        return True
+        
+    except Exception as e:
+        st.error(f"Error in research idea pipeline: {str(e)}")
+        # Show detailed error in expandable section
+        with st.expander("Error details"):
             st.exception(e)
-            return False
+        
+        # Update app stage based on what we completed
+        if hasattr(st.session_state, 'current_idea') and st.session_state.current_idea:
+            if hasattr(st.session_state, 'feedback') and st.session_state.feedback:
+                st.session_state.app_stage = 'feedback_received'
+            else:
+                st.session_state.app_stage = 'idea_generated'
+                
+        return False
 
 def main():
     st.set_page_config(
@@ -169,101 +188,131 @@ def main():
     
     # Sidebar for inputs and actions
     with st.sidebar:
-        st.header("Student Profile")
+        st.header("API Key")
+        api_key = st.text_input(
+            "Enter your Google AI Studio API Key",
+            type="password",
+            help="Get your API key from https://makersuite.google.com/app/apikey",
+            key="api_key_input",
+            value=st.session_state.api_key
+        )
         
-        # Astronomy interests
-        st.subheader("Research Interests")
-        
-        # Check if ASTRONOMY_SUBFIELDS is available and not empty
-        if not ASTRONOMY_SUBFIELDS:
-            st.error("No astronomy subfields found. Check your idea_agent.py file.")
+        # Only continue if API key is provided
+        if api_key:
+            st.session_state.api_key = api_key
+            
+            # Initialize clients with API key
+            idea_client = init_idea_client(api_key)
+            reflection_client = init_reflection_client(api_key)
+            
+            # Create agents if they don't exist
+            if not st.session_state.idea_agent and idea_client:
+                st.session_state.idea_agent = IdeaAgent(idea_client)
+            if not st.session_state.reflection_agent and reflection_client:
+                st.session_state.reflection_agent = AstronomyReflectionAgent(reflection_client)
+                
+            # Display Status
+            st.success("API key set. Ready to generate ideas!")
+            
+            st.header("Student Profile")
+            
+            # Astronomy interests
+            st.subheader("Research Interests")
+            
+            # Check if ASTRONOMY_SUBFIELDS is available and not empty
+            if not ASTRONOMY_SUBFIELDS:
+                st.error("No astronomy subfields found. Check your idea_agent.py file.")
+                st.stop()
+            
+            # Create checkboxes for each subfield using unique keys
+            for subfield in ASTRONOMY_SUBFIELDS:
+                # Check if this interest is already selected
+                is_selected = subfield.name in st.session_state.interests
+                st.checkbox(
+                    subfield.name,
+                    value=is_selected,
+                    help=subfield.description,
+                    key=f"interest_{subfield.name}",
+                    on_change=update_interests
+                )
+            
+            # Skill level - direct widget
+            st.select_slider(
+                "Skill Level",
+                options=["beginner", "intermediate", "advanced"],
+                value=st.session_state.get("skill_level", "beginner"),
+                help="Select your current level of expertise in astronomy research",
+                key="skill_level"
+            )
+            
+            # Time frame - direct widget
+            st.select_slider(
+                "Research Time Frame",
+                options=["3 months", "6 months", "1 year", "2 years", "3 years", "4-5 years"],
+                value=st.session_state.get("time_frame", "1 year"),
+                help="Expected duration of your research project (3-6 months for summer students/interns)",
+                key="time_frame"
+            )
+            
+            # Available resources
+            st.subheader("Available Resources")
+            resource_options = [
+                "University telescope (< 1 meter)",
+                "University telescope (1-3 meters)",
+                "Access to large telescope time (> 3 meters)",
+                "High-performance computing cluster",
+                "Public astronomical datasets",
+                "Spectroscopy equipment",
+                "Radio astronomy facilities",
+                "Collaboration with other departments",
+                "Advanced programming skills"
+            ]
+            
+            # Store options for use in the update function
+            st.session_state.resource_options = resource_options
+            
+            # Create checkboxes for each resource using unique keys
+            for resource in resource_options:
+                # Check if this resource is already selected
+                is_selected = resource in st.session_state.resources
+                st.checkbox(
+                    resource,
+                    value=is_selected,
+                    key=f"resource_{resource}",
+                    on_change=update_resources
+                )
+            
+            # Additional context text area - direct widget
+            st.text_area(
+                "Provide any additional information about yourself",
+                value=st.session_state.additional_context,
+                height=150,
+                help="Include previous research experience, specific interests, career goals, or particular astronomy phenomena you're curious about.",
+                key="additional_context"
+            )
+            
+            # Action Buttons
+            st.header("Actions")
+            
+            # Single button to run the entire pipeline
+            st.button(
+                "Generate Research Idea", 
+                on_click=set_generate_trigger, 
+                type="primary",
+                key="btn_generate"
+            )
+            
+            # Reset button
+            st.button(
+                "Start Over", 
+                on_click=reset_state, 
+                key="btn_reset"
+            )
+        else:
+            st.warning("Please enter your Google AI Studio API key to use this app.")
+            # Stop further execution until API key is provided
             st.stop()
-        
-        # Create checkboxes for each subfield using unique keys
-        for subfield in ASTRONOMY_SUBFIELDS:
-            # Check if this interest is already selected
-            is_selected = subfield.name in st.session_state.interests
-            st.checkbox(
-                subfield.name,
-                value=is_selected,
-                help=subfield.description,
-                key=f"interest_{subfield.name}",
-                on_change=update_interests
-            )
-        
-        # Skill level - direct widget
-        st.select_slider(
-            "Skill Level",
-            options=["beginner", "intermediate", "advanced"],
-            value=st.session_state.get("skill_level", "beginner"),
-            help="Select your current level of expertise in astronomy research",
-            key="skill_level"
-        )
-        
-        # Time frame - direct widget
-        st.select_slider(
-            "Research Time Frame",
-            options=["3 months", "6 months", "1 year", "2 years", "3 years", "4-5 years"],
-            value=st.session_state.get("time_frame", "1 year"),
-            help="Expected duration of your research project (3-6 months for summer students/interns)",
-            key="time_frame"
-        )
-        
-        # Available resources
-        st.subheader("Available Resources")
-        resource_options = [
-            "University telescope (< 1 meter)",
-            "University telescope (1-3 meters)",
-            "Access to large telescope time (> 3 meters)",
-            "High-performance computing cluster",
-            "Public astronomical datasets",
-            "Spectroscopy equipment",
-            "Radio astronomy facilities",
-            "Collaboration with other departments",
-            "Advanced programming skills"
-        ]
-        
-        # Store options for use in the update function
-        st.session_state.resource_options = resource_options
-        
-        # Create checkboxes for each resource using unique keys
-        for resource in resource_options:
-            # Check if this resource is already selected
-            is_selected = resource in st.session_state.resources
-            st.checkbox(
-                resource,
-                value=is_selected,
-                key=f"resource_{resource}",
-                on_change=update_resources
-            )
-        
-        # Additional context text area - direct widget
-        st.text_area(
-            "Provide any additional information about yourself",
-            value=st.session_state.additional_context,
-            height=150,
-            help="Include previous research experience, specific interests, career goals, or particular astronomy phenomena you're curious about.",
-            key="additional_context"
-        )
-        
-        # Action Buttons
-        st.header("Actions")
-        
-        # Single button to run the entire pipeline
-        st.button(
-            "Generate Research Idea", 
-            on_click=set_generate_trigger, 
-            type="primary",
-            key="btn_generate"
-        )
-        
-        # Reset button
-        st.button(
-            "Start Over", 
-            on_click=reset_state, 
-            key="btn_reset"
-        )
-    
+
     # Main content area
     if st.session_state.app_stage == 'start':
         # Show welcome message and instructions

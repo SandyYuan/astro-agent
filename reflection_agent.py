@@ -13,10 +13,19 @@ from idea_agent import (
 )
 
 # Assuming you've set up API keys in a config.py file
-from config import google_key
+# from config import google_key
 
 # Initialize API client
-client = genai.Client(api_key=google_key)
+# client = genai.Client(api_key=google_key)
+
+client = None
+
+def initialize_client(api_key):
+    """Initialize the API client with the provided key"""
+    global client
+    if api_key:
+        client = genai.Client(api_key=api_key)
+    return client
 
 @dataclass
 class ProposalFeedback:

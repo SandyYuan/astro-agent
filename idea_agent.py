@@ -2,14 +2,26 @@ import os
 import json
 import random
 from typing import List, Dict, Any, Optional
-from config import *
+# from config import *
 from subfields import AstronomySubfield, ASTRONOMY_SUBFIELDS
 
 # from anthropic import Anthropic
 from google import genai
 
 # client = Anthropic(api_key=anthropic_key)
-client = genai.Client(api_key=google_key)
+# client = genai.Client(api_key=google_key)
+
+import streamlit as st
+
+# Initialize client (will be set when key is available)
+client = None
+
+def initialize_client(api_key):
+    """Initialize the API client with the provided key"""
+    global client
+    if api_key:
+        client = genai.Client(api_key=api_key)
+    return client
 
 # New stateful IdeaAgent class
 class IdeaAgent:
