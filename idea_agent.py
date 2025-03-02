@@ -13,16 +13,6 @@ from google import genai
 
 import streamlit as st
 
-# Initialize client (will be set when key is available)
-client = None
-
-def initialize_client(api_key):
-    """Initialize the API client with the provided key"""
-    global client
-    if api_key:
-        client = genai.Client(api_key=api_key)
-    return client
-
 class IdeaAgent:
     """Stateful agent that generates and improves astronomy research ideas."""
     def __init__(self, api_key):
@@ -78,7 +68,7 @@ class IdeaAgent:
         return response.text
 
     def improve_idea(self, feedback: Dict[str, Any]) -> Dict[str, Any]:
-        """Improve the current idea based on expert feedback."""
+        """Improve the current idea based on expert feedback and optional literature insights."""
         if not self.current_idea:
             raise ValueError("No current idea exists. Generate an initial idea first.")
         
@@ -95,28 +85,47 @@ class IdeaAgent:
         # Handle different feedback formats
         if isinstance(feedback, dict):
             # Extract from dictionary structure
-            scientific_concerns = feedback.get("scientific_validity", {}).get("concerns", [])
-            if isinstance(scientific_concerns, dict):
-                scientific_concerns = scientific_concerns.get("concerns", [])
+            scientific_dict = feedback.get("scientific_validity", {})
+            if isinstance(scientific_dict, dict):
+                scientific_concerns = scientific_dict.get("concerns", [])
             
-            methodological_concerns = feedback.get("methodology", {}).get("concerns", [])
-            if isinstance(methodological_concerns, dict):
-                methodological_concerns = methodological_concerns.get("concerns", [])
+            methodology_dict = feedback.get("methodology", {})
+            if isinstance(methodology_dict, dict):
+                methodological_concerns = methodology_dict.get("concerns", [])
             
             recommendations = feedback.get("recommendations", [])
             summary = feedback.get("summary", "")
+        
+        # Check for literature insights (new)
+        literature_insights = feedback.get("literature_insights", {})
+        literature_recommendations = []
+        literature_summary = ""
+        novel_suggestions = []
+        emerging_trends = ""
+        novelty_score = 0
+        
+        if literature_insights:
+            literature_recommendations = literature_insights.get("recommended_improvements", [])
+            novel_suggestions = literature_insights.get("differentiation_suggestions", [])
+            emerging_trends = literature_insights.get("emerging_trends", "")
+            literature_summary = literature_insights.get("summary", "")
+            novelty_score = literature_insights.get("novelty_score", 0)
         
         # Format the concerns and recommendations for the prompt
         scientific_concerns_text = "\n".join([f"- {concern}" for concern in scientific_concerns])
         methodological_concerns_text = "\n".join([f"- {concern}" for concern in methodological_concerns])
         recommendations_text = "\n".join([f"{i+1}. {rec}" for i, rec in enumerate(recommendations)])
         
+        # Format literature feedback (new)
+        literature_recommendations_text = "\n".join([f"- {rec}" for rec in literature_recommendations])
+        novel_suggestions_text = "\n".join([f"- {suggestion}" for suggestion in novel_suggestions])
+        
         # Get the original research question format for reference
         original_research_question = self.current_idea['idea'].get('Research Question', '')
         
-        # Create improvement prompt that includes original context
+        # Create improvement prompt that includes original context and literature insights
         improvement_prompt = f"""
-    You are an astronomy researcher revising your research proposal based on expert feedback.
+    You are an astronomy researcher revising your research proposal based on expert feedback and literature review.
 
     YOUR ORIGINAL PROPOSAL:
     Title: "{self.current_idea['title']}"
@@ -149,16 +158,50 @@ class IdeaAgent:
 
     Overall Assessment:
     {summary}
+    """
 
+        # Add literature review section if available
+        if literature_insights:
+            improvement_prompt += f"""
+    LITERATURE REVIEW INSIGHTS:
+
+    Novelty Assessment (Score: {novelty_score}/10):
+    {literature_insights.get('novelty_assessment', '')}
+
+    Innovation Opportunities:
+    {novel_suggestions_text}
+
+    Emerging Research Trends:
+    {emerging_trends}
+
+    Novelty Recommendations:
+    {literature_recommendations_text}
+
+    Literature Summary:
+    {literature_summary}
+    """
+
+        # Add instructions
+        improvement_prompt += f"""
     INSTRUCTIONS:
 
     Create an improved version of your research proposal that:
     1. Maintains your original research direction but addresses ALL identified scientific concerns
     2. Fixes the methodological issues while keeping the project feasible
     3. Incorporates the expert recommendations
-    4. Ensures claims are proportional to what methods can actually measure
-    5. Is appropriate for your skill level ({self.student_profile['skill_level']}) within your timeframe ({self.student_profile['time_frame']})
-    6. Uses only the available resources: {', '.join(self.student_profile['available_resources'])}
+    """
+
+        # Add novelty-specific instructions if literature review was performed
+        if literature_insights:
+            improvement_prompt += """
+    4. Enhances novelty by incorporating differentiation suggestions and emerging trends
+    5. Positions your work clearly with respect to the existing literature
+    """
+
+        improvement_prompt += f"""
+    {4 if not literature_insights else 6}. Ensures claims are proportional to what methods can actually measure
+    {5 if not literature_insights else 7}. Is appropriate for your skill level ({self.student_profile['skill_level']}) within your timeframe ({self.student_profile['time_frame']})
+    {6 if not literature_insights else 8}. Uses only the available resources: {', '.join(self.student_profile['available_resources'])}
 
     CRITICAL FORMAT REQUIREMENTS:
     1. The Research Question must follow the same format as the original, beginning with "In this project, we will use..." 
@@ -193,7 +236,7 @@ class IdeaAgent:
     ## Broader Connections
     [Improved broader connections]
 
-    Make sure your revised proposal is scientifically accurate, methodologically sound, and feasible.
+    Make sure your revised proposal is scientifically accurate, methodologically sound, feasible, and novel.
     """
             
         # Generate the improved idea

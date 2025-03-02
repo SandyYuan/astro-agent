@@ -20,13 +20,6 @@ from idea_agent import (
 
 client = None
 
-def initialize_client(api_key):
-    """Initialize the API client with the provided key"""
-    global client
-    if api_key:
-        client = genai.Client(api_key=api_key)
-    return client
-
 @dataclass
 class ProposalFeedback:
     """Structured feedback on an astronomy research proposal."""
@@ -37,6 +30,7 @@ class ProposalFeedback:
     feasibility_assessment: str
     recommendations: List[str]
     summary: str
+    literature_insights: Optional[Dict[str, Any]] = None  # Added field for literature feedback
 
 class AstronomyReflectionAgent:
     """Expert astronomer agent that evaluates research proposals."""
@@ -46,7 +40,7 @@ class AstronomyReflectionAgent:
         self.api_key = api_key
         self.llm_client = genai.Client(api_key=api_key)
     
-    def evaluate_proposal(self, proposal: Dict[str, Any]) -> ProposalFeedback:
+    def evaluate_proposal(self, proposal: Dict[str, Any], literature_feedback: Optional[Dict[str, Any]] = None) -> ProposalFeedback:
         """Evaluate a proposal and return structured feedback."""
         # Create a detailed prompt for the LLM
         prompt = self._create_evaluation_prompt(proposal)
@@ -56,10 +50,14 @@ class AstronomyReflectionAgent:
         
         # Parse the response into structured feedback
         feedback = self._parse_feedback(response)
+
+        # Add literature insights if available
+        if literature_feedback:
+            feedback.literature_insights = literature_feedback.get("literature_review")
         
         return feedback
     
-    def _create_evaluation_prompt(self, proposal: Dict[str, Any]) -> str:
+    def _create_evaluation_prompt(self, proposal: Dict[str, Any], literature_feedback: Optional[Dict[str, Any]] = None) -> str:
         """Create a detailed prompt for the LLM to evaluate the proposal."""
         title = proposal.get("title", "")
         research_question = proposal.get("idea", {}).get("Research Question", "")
@@ -68,6 +66,7 @@ class AstronomyReflectionAgent:
         skill_level = proposal.get("skill_level", "")
         time_frame = proposal.get("time_frame", "")
         
+        # Base prompt
         prompt = f"""
         You are an expert astronomy professor with decades of experience evaluating research proposals.
         
@@ -84,6 +83,55 @@ class AstronomyReflectionAgent:
         
         STUDENT SKILL LEVEL: {skill_level}
         TIMEFRAME: {time_frame}
+        """
+        
+        # Add literature feedback if available
+        if literature_feedback and "literature_review" in literature_feedback:
+            lit_review = literature_feedback["literature_review"]
+            
+            # Extract key components from literature feedback
+            similar_papers = lit_review.get("similar_papers", [])
+            novelty_assessment = lit_review.get("novelty_assessment", "")
+            novelty_score = lit_review.get("novelty_score", 5.0)
+            recommendations = lit_review.get("recommended_improvements", [])
+            emerging_trends = lit_review.get("emerging_trends", "")
+            
+            # Format similar papers
+            papers_text = ""
+            for i, paper in enumerate(similar_papers[:3], 1):  # Limit to top 3 papers
+                title = paper.get("title", "Unknown Title")
+                authors = paper.get("authors", "Unknown Authors")
+                year = paper.get("year", "Unknown Year")
+                journal = paper.get("journal", "Unknown Journal")
+                relevance = paper.get("relevance", "")
+                
+                papers_text += f"{i}. {title} by {authors} ({year}) - {journal}\n"
+                if relevance:
+                    papers_text += f"   Relevance: {relevance}\n"
+            
+            # Format recommendations
+            recs_text = "\n".join([f"- {rec}" for rec in recommendations[:3]])  # Limit to top 3
+            
+            # Add literature section to prompt
+            prompt += f"""
+            
+            LITERATURE REVIEW FINDINGS:
+            
+            Similar Recent Papers:
+            {papers_text}
+            
+            Novelty Assessment (Score: {novelty_score}/10):
+            {novelty_assessment}
+            
+            Key Innovation Recommendations:
+            {recs_text}
+            
+            Emerging Research Trends:
+            {emerging_trends}
+            """
+        
+        # Add evaluation instructions
+        prompt += """
         
         EVALUATION INSTRUCTIONS:
         
@@ -220,8 +268,27 @@ class AstronomyReflectionAgent:
         
         return {"strengths": strengths, "concerns": concerns}
     
-    def format_feedback_for_idea_agent(self, feedback: ProposalFeedback) -> str:
+    def format_feedback_for_idea_agent(self, feedback: ProposalFeedback) -> Dict[str, Any]:
         """Format feedback in a clear structure for the idea_agent."""
+        # Convert to dictionary for easier integration
+        feedback_dict = {
+            "scientific_validity": feedback.scientific_validity,
+            "methodology": feedback.methodology,
+            "novelty_assessment": feedback.novelty_assessment,
+            "impact_assessment": feedback.impact_assessment,
+            "feasibility_assessment": feedback.feasibility_assessment,
+            "recommendations": feedback.recommendations,
+            "summary": feedback.summary
+        }
+        
+        # Add literature insights if available
+        if feedback.literature_insights:
+            feedback_dict["literature_insights"] = feedback.literature_insights
+        
+        return feedback_dict
+    
+    def format_feedback_for_display(self, feedback: ProposalFeedback) -> str:
+        """Format feedback in a human-readable format for UI display."""
         result = "# EXPERT ASTRONOMY FEEDBACK\n\n"
         
         result += "## SCIENTIFIC VALIDITY CONCERNS\n"
@@ -237,6 +304,12 @@ class AstronomyReflectionAgent:
             result += f"{i}. {rec}\n"
         
         result += f"\n## OVERALL ASSESSMENT\n{feedback.summary}\n"
+        
+        # Add literature insights if available
+        if feedback.literature_insights:
+            result += "\n## LITERATURE INSIGHTS\n"
+            result += f"Novelty Score: {feedback.literature_insights.get('novelty_score', 'N/A')}/10\n\n"
+            result += feedback.literature_insights.get('novelty_assessment', 'No assessment available.')
         
         return result
     

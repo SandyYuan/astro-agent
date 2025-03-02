@@ -14,6 +14,7 @@ asyncio.set_event_loop(loop)
 from idea_agent import IdeaAgent
 from subfields import ASTRONOMY_SUBFIELDS
 from reflection_agent import AstronomyReflectionAgent, ProposalFeedback
+from literature_agent import LiteratureAgent  # Import the new LiteratureAgent
 
 # Import Google GenAI
 try:
@@ -27,23 +28,6 @@ def generate_research_idea(api_key, **kwargs):
     agent = IdeaAgent(api_key)
     return agent.generate_initial_idea(**kwargs)
 
-# # Import or initialize your client
-# try:
-#     from config import google_key
-#     from google import genai
-#     client = genai.Client(api_key=google_key)
-# except ImportError as e:
-#     st.error(f"Client Import Error: {e}")
-#     st.write("Please make sure your API configuration is set up correctly")
-#     client = None
-
-# # Import Google GenAI
-# try:
-#     from google import genai
-# except ImportError:
-#     st.error("Could not import Google GenerativeAI. Please install it with: pip install google-generativeai")
-#     st.stop()
-
 def initialize_session_state():
     """Initialize all session state variables if they don't exist"""
     if 'api_key' not in st.session_state:
@@ -52,8 +36,12 @@ def initialize_session_state():
         st.session_state.idea_agent = None
     if 'reflection_agent' not in st.session_state:
         st.session_state.reflection_agent = None
+    if 'literature_agent' not in st.session_state:  # Add literature agent
+        st.session_state.literature_agent = None
     if 'current_idea' not in st.session_state:
         st.session_state.current_idea = None
+    if 'literature_feedback' not in st.session_state:  # Add literature feedback
+        st.session_state.literature_feedback = None
     if 'feedback' not in st.session_state:
         st.session_state.feedback = None
     if 'improved_idea' not in st.session_state:
@@ -61,7 +49,7 @@ def initialize_session_state():
     if 'show_process' not in st.session_state:
         st.session_state.show_process = False
     if 'app_stage' not in st.session_state:
-        # Possible values: 'start', 'completed'
+        # Possible values: 'start', 'idea_generated', 'literature_reviewed', 'feedback_received', 'completed'
         st.session_state.app_stage = 'start'
     if 'interests' not in st.session_state:
         st.session_state.interests = []
@@ -71,10 +59,13 @@ def initialize_session_state():
         st.session_state.additional_context = ""
     if 'trigger_generate' not in st.session_state:
         st.session_state.trigger_generate = False
+    if 'skip_literature_review' not in st.session_state:  # Add option to skip literature review
+        st.session_state.skip_literature_review = False
 
 def reset_state():
     """Reset the application state for a new idea generation"""
     st.session_state.current_idea = None
+    st.session_state.literature_feedback = None  # Reset literature feedback
     st.session_state.feedback = None
     st.session_state.improved_idea = None
     st.session_state.show_process = False
@@ -108,8 +99,12 @@ def set_generate_trigger():
 def toggle_process_view():
     st.session_state.show_process = not st.session_state.show_process
 
+def toggle_literature_review():
+    """Toggle the literature review option"""
+    st.session_state.skip_literature_review = not st.session_state.skip_literature_review
+
 def run_full_pipeline():
-    """Run the entire idea generation, feedback, and improvement pipeline"""
+    """Run the entire idea generation, literature review, feedback, and improvement pipeline"""
     # First check if we have valid agents
     if not st.session_state.idea_agent or not st.session_state.reflection_agent:
         st.error("API client not initialized. Please enter a valid API key.")
@@ -131,27 +126,45 @@ def run_full_pipeline():
                 return False
                 
             st.session_state.current_idea = initial_idea
+            st.session_state.app_stage = 'idea_generated'
         
-        # Step 2: Get feedback
+        # Step 2: Literature Review (New step)
+        literature_feedback = None
+        if not st.session_state.skip_literature_review and st.session_state.literature_agent:
+            with st.spinner("Conducting literature review to assess novelty..."):
+                try:
+                    literature_feedback_obj = st.session_state.literature_agent.review_literature(initial_idea)
+                    literature_feedback = st.session_state.literature_agent.format_feedback_for_idea_agent(literature_feedback_obj)
+                    st.session_state.literature_feedback = literature_feedback_obj
+                    st.session_state.app_stage = 'literature_reviewed'
+                except Exception as e:
+                    st.warning(f"Literature review encountered an issue, proceeding without it: {str(e)}")
+                    literature_feedback = None
+        
+        # Step 3: Get feedback, now including literature insights if available
         with st.spinner("Getting expert feedback on the idea..."):
-            feedback = st.session_state.reflection_agent.evaluate_proposal(initial_idea)
+            feedback = st.session_state.reflection_agent.evaluate_proposal(
+                initial_idea, 
+                literature_feedback
+            )
             
             if not feedback:
                 st.error("Failed to get expert feedback.")
                 # We can still continue with just the initial idea
-                st.session_state.app_stage = 'idea_generated'
                 return False
                 
             st.session_state.feedback = feedback
+            st.session_state.app_stage = 'feedback_received'
         
-        # Step 3: Improve idea
+        # Step 4: Improve idea
         with st.spinner("Refining research idea based on feedback..."):
-            improved_idea = st.session_state.idea_agent.improve_idea(feedback.__dict__)
+            # Convert feedback to dictionary for idea agent
+            feedback_dict = st.session_state.reflection_agent.format_feedback_for_idea_agent(feedback)
+            improved_idea = st.session_state.idea_agent.improve_idea(feedback_dict)
             
             if not improved_idea:
                 st.error("Failed to refine the research idea.")
                 # We still have the initial idea and feedback
-                st.session_state.app_stage = 'feedback_received'
                 return False
                 
             st.session_state.improved_idea = improved_idea
@@ -170,6 +183,8 @@ def run_full_pipeline():
         if hasattr(st.session_state, 'current_idea') and st.session_state.current_idea:
             if hasattr(st.session_state, 'feedback') and st.session_state.feedback:
                 st.session_state.app_stage = 'feedback_received'
+            elif hasattr(st.session_state, 'literature_feedback') and st.session_state.literature_feedback:
+                st.session_state.app_stage = 'literature_reviewed'
             else:
                 st.session_state.app_stage = 'idea_generated'
                 
@@ -218,6 +233,13 @@ def main():
                     st.session_state.reflection_agent = AstronomyReflectionAgent(api_key)
                 except Exception as e:
                     st.error(f"Error initializing reflection agent: {str(e)}")
+            
+            # Initialize literature agent (new)
+            if not st.session_state.literature_agent:
+                try:
+                    st.session_state.literature_agent = LiteratureAgent(api_key)
+                except Exception as e:
+                    st.error(f"Error initializing literature agent: {str(e)}")
                     
             # Display Status
             st.success("API key set. Ready to generate ideas!")
@@ -299,6 +321,15 @@ def main():
                 key="additional_context"
             )
             
+            # Add literature review toggle option
+            st.checkbox(
+                "Skip literature review (faster generation)",
+                value=st.session_state.skip_literature_review,
+                help="Turn this on to skip the literature review step and generate ideas faster.",
+                key="skip_lit_review_checkbox",
+                on_change=toggle_literature_review
+            )
+            
             # Action Buttons
             st.header("Actions")
             
@@ -345,6 +376,11 @@ def main():
             st.subheader("📝 Initial Research Idea", divider="rainbow")
             display_research_idea(st.session_state.current_idea)
             
+            # Display literature review if available
+            if st.session_state.literature_feedback:
+                st.subheader("📚 Literature Review", divider="rainbow")
+                display_literature_review(st.session_state.literature_feedback)
+            
             # Display the feedback
             st.subheader("🔍 Expert Feedback", divider="rainbow")
             display_feedback(st.session_state.feedback)
@@ -378,16 +414,18 @@ def display_welcome_page():
     2. Adjust your skill level and intended research timeframe
     3. Select available resources you have access to
     4. Add any additional context about yourself or interests (optional)
-    5. Click "Generate Research Idea" to get a refined research proposal
-    6. Use the "Show Development Process" button to see how the idea was improved
+    5. Choose whether to include literature review (improves novelty but takes longer)
+    6. Click "Generate Research Idea" to get a refined research proposal
+    7. Use the "Show Development Process" button to see how the idea was improved
     
     ### About this tool:
     This tool uses an AI system to:
     1. Generate an initial research idea based on your interests and resources
-    2. Evaluate that idea with expert astronomical knowledge
-    3. Refine the idea based on scientific feedback
+    2. Conduct a literature review to assess novelty and current research trends
+    3. Evaluate the idea with expert astronomical knowledge
+    4. Refine the idea based on scientific feedback and literature insights
     
-    You'll receive a polished research idea that's both scientifically sound and feasible for your skill level and timeframe.
+    You'll receive a polished research idea that's both scientifically sound, novel, and feasible for your skill level and timeframe.
     """)
     
     # Display sample subfields
@@ -453,6 +491,92 @@ def display_research_idea(idea):
             file_name=f"astronomy_{version_tag}.json",
             mime="application/json"
         )
+
+def display_literature_review(literature_feedback):
+    """Display literature review in a structured way"""
+    if not literature_feedback:
+        st.error("No literature feedback available")
+        return
+    
+    # Novelty score
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        novelty_score = getattr(literature_feedback, 'novelty_score', 5.0)
+        st.metric("Novelty Score", f"{novelty_score}/10")
+    
+    with col2:
+        st.subheader("Novelty Assessment")
+        st.write(getattr(literature_feedback, 'novelty_assessment', "No assessment available"))
+    
+    # Similar papers - with improved display
+    st.subheader("Similar Recent Papers")
+    similar_papers = getattr(literature_feedback, 'similar_papers', [])
+    
+    if similar_papers:
+        # Display papers in a more attractive way
+        for i, paper in enumerate(similar_papers, 1):
+            title = paper.get('title', 'Unnamed Paper')
+            # Create a nice title with appropriate icons
+            formatted_title = f"{i}. 📄 {title}"
+            
+            with st.expander(formatted_title):
+                # Create a more structured layout
+                col1, col2 = st.columns([1, 1])
+                
+                with col1:
+                    st.markdown(f"**Authors:** {paper.get('authors', 'Unknown')}")
+                    st.markdown(f"**Year:** {paper.get('year', 'Unknown')}")
+                    st.markdown(f"**Journal:** {paper.get('journal', 'Unknown')}")
+                
+                with col2:
+                    if paper.get('summary'):
+                        st.markdown("**Summary:**")
+                        st.markdown(f"_{paper.get('summary')}_")
+                    
+                    if paper.get('relevance'):
+                        st.markdown("**Relevance:**")
+                        st.markdown(f"_{paper.get('relevance')}_")
+    else:
+        # Check if novelty assessment mentions comparison to existing literature
+        novelty_assessment = getattr(literature_feedback, 'novelty_assessment', "")
+        emerging_trends = getattr(literature_feedback, 'emerging_trends', "")
+        
+        # If the assessment mentions literature or trends but no papers were parsed
+        if (novelty_assessment and any(term in novelty_assessment.lower() for term in ["literature", "paper", "study", "research", "work"])) or \
+           (emerging_trends and any(term in emerging_trends.lower() for term in ["literature", "paper", "study", "research", "work"])):
+            st.warning("Literature was referenced in the analysis, but specific papers couldn't be extracted automatically.")
+            st.info("Check the Novelty Assessment and Emerging Trends sections for details about how this research relates to existing literature.")
+        else:
+            st.write("No similar papers identified in the current literature.")
+    
+    # Display in two columns
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Differentiation Suggestions")
+        diff_suggestions = getattr(literature_feedback, 'differentiation_suggestions', [])
+        if diff_suggestions:
+            for i, suggestion in enumerate(diff_suggestions, 1):
+                st.write(f"{i}. {suggestion}")
+        else:
+            st.write("No differentiation suggestions available.")
+    
+    with col2:
+        st.subheader("Key Recommendations")
+        recommendations = getattr(literature_feedback, 'recommended_improvements', [])
+        if recommendations:
+            for i, rec in enumerate(recommendations, 1):
+                st.write(f"{i}. {rec}")
+        else:
+            st.write("No recommendations available.")
+    
+    # Emerging trends
+    st.subheader("Emerging Research Trends")
+    st.write(getattr(literature_feedback, 'emerging_trends', "No emerging trends identified."))
+    
+    # Summary
+    st.subheader("Summary Assessment")
+    st.write(getattr(literature_feedback, 'summary', "No summary available."))
 
 def display_feedback(feedback):
     """Display expert feedback in a structured way"""
@@ -631,8 +755,20 @@ def display_comparison(original_idea, improved_idea, feedback):
     else:
         st.write("No specific methodological concerns were identified.")
     
+    # Novelty Improvements (new)
+    st.subheader("5. Novelty Improvements")
+    if hasattr(feedback, 'literature_insights') and feedback.literature_insights:
+        novel_recs = feedback.literature_insights.get('recommended_improvements', [])
+        if novel_recs:
+            for rec in novel_recs:
+                st.write(f"🔄 **Enhanced:** {rec}")
+        else:
+            st.write("No specific novelty recommendations were identified.")
+    else:
+        st.write("No literature review was conducted.")
+    
     # Recommendations Implemented
-    st.subheader("5. Expert Recommendations Implemented")
+    st.subheader("6. Expert Recommendations Implemented")
     if hasattr(feedback, 'recommendations') and feedback.recommendations:
         for i, rec in enumerate(feedback.recommendations, 1):
             st.write(f"✓ {rec}")
