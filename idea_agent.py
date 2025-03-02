@@ -25,11 +25,12 @@ def initialize_client(api_key):
 
 class IdeaAgent:
     """Stateful agent that generates and improves astronomy research ideas."""
-    
     def __init__(self, api_key):
-        """Initialize with an API key."""
         self.api_key = api_key
-        self.llm_client = genai.Client(api_key=api_key)
+        if genai:
+            self.llm_client = genai.configure(api_key=api_key)
+        else:
+            self.llm_client = None
         self.original_prompt = None
         self.current_idea = None
         self.student_profile = None
