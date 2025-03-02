@@ -28,7 +28,7 @@ class IdeaAgent:
     def __init__(self, api_key):
         self.api_key = api_key
         if genai:
-            self.llm_client = genai.configure(api_key=api_key)
+            self.llm_client = genai.Client(api_key=api_key)
         else:
             self.llm_client = None
         self.original_prompt = None
