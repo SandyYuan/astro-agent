@@ -11,15 +11,21 @@ nest_asyncio.apply()
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-# Import your generator function and agents
+from idea_agent import IdeaAgent
+from subfields import ASTRONOMY_SUBFIELDS
+from reflection_agent import AstronomyReflectionAgent, ProposalFeedback
+
+# Import Google GenAI
 try:
-    from idea_agent import IdeaAgent, generate_research_idea, initialize_client as init_idea_client
-    from subfields import ASTRONOMY_SUBFIELDS
-    from reflection_agent import AstronomyReflectionAgent, ProposalFeedback, initialize_client as init_reflection_client
-except ImportError as e:
-    st.error(f"Import Error: {e}")
-    st.write("Please make sure your generator code is in a file named 'idea_agent.py' and reflection code in 'reflection_agent.py'")
+    from google import genai
+except ImportError:
+    st.error("Could not import Google GenerativeAI. Please install it with: pip install google-generativeai")
     st.stop()
+
+# Create the standalone functions if needed
+def generate_research_idea(api_key, **kwargs):
+    agent = IdeaAgent(api_key)
+    return agent.generate_initial_idea(**kwargs)
 
 # # Import or initialize your client
 # try:
@@ -31,12 +37,12 @@ except ImportError as e:
 #     st.write("Please make sure your API configuration is set up correctly")
 #     client = None
 
-# Import Google GenAI
-try:
-    from google import genai
-except ImportError:
-    st.error("Could not import Google GenerativeAI. Please install it with: pip install google-generativeai")
-    st.stop()
+# # Import Google GenAI
+# try:
+#     from google import genai
+# except ImportError:
+#     st.error("Could not import Google GenerativeAI. Please install it with: pip install google-generativeai")
+#     st.stop()
 
 def initialize_session_state():
     """Initialize all session state variables if they don't exist"""
@@ -201,16 +207,18 @@ def main():
         if api_key:
             st.session_state.api_key = api_key
             
-            # Initialize clients with API key
-            idea_client = init_idea_client(api_key)
-            reflection_client = init_reflection_client(api_key)
-            
-            # Create agents if they don't exist
-            if not st.session_state.idea_agent and idea_client:
-                st.session_state.idea_agent = IdeaAgent(idea_client)
-            if not st.session_state.reflection_agent and reflection_client:
-                st.session_state.reflection_agent = AstronomyReflectionAgent(reflection_client)
-                
+            if not st.session_state.idea_agent:
+                try:
+                    st.session_state.idea_agent = IdeaAgent(api_key)
+                except Exception as e:
+                    st.error(f"Error initializing idea agent: {str(e)}")
+
+            if not st.session_state.reflection_agent:
+                try:
+                    st.session_state.reflection_agent = AstronomyReflectionAgent(api_key)
+                except Exception as e:
+                    st.error(f"Error initializing reflection agent: {str(e)}")
+                    
             # Display Status
             st.success("API key set. Ready to generate ideas!")
             

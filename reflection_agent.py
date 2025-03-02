@@ -40,11 +40,12 @@ class ProposalFeedback:
 
 class AstronomyReflectionAgent:
     """Expert astronomer agent that evaluates research proposals."""
+
+    def __init__(self, api_key):
+        """Initialize with an API key."""
+        self.api_key = api_key
+        self.llm_client = genai.Client(api_key=api_key)
     
-    def __init__(self, llm_client):
-        """Initialize with an LLM client."""
-        self.llm_client = llm_client
-        
     def evaluate_proposal(self, proposal: Dict[str, Any]) -> ProposalFeedback:
         """Evaluate a proposal and return structured feedback."""
         # Create a detailed prompt for the LLM
@@ -152,11 +153,19 @@ class AstronomyReflectionAgent:
     
     def _get_llm_evaluation(self, prompt: str) -> str:
         """Get evaluation from the LLM."""
-        # Implement with your specific LLM client
-        response = self.llm_client.models.generate_content(
-            model="gemini-1.5-pro", contents=prompt
-        )
-        return response.text
+        try:
+            # Create a fresh client with only required parameters
+            client = genai.Client(api_key=self.api_key)
+            response = client.models.generate_content(
+                model="gemini-2.0-flash-thinking-exp", 
+                contents=prompt
+                # No additional parameters
+            )
+            return response.text
+        except Exception as e:
+            print(f"Error in LLM evaluation: {str(e)}")
+            raise
+        
     
     def _parse_feedback(self, response: str) -> ProposalFeedback:
         """Parse the LLM response into structured feedback."""
@@ -277,7 +286,7 @@ def generate_improved_idea(original_proposal: Dict[str, Any], feedback: Proposal
     
     # Get improved idea from LLM
     response = client.models.generate_content(
-        model="gemini-1.5-pro", contents=improvement_prompt
+        model="gemini-2.0-flash-thinking-exp", contents=improvement_prompt
     )
     improved_idea_text = response.text
     

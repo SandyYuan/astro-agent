@@ -23,13 +23,13 @@ def initialize_client(api_key):
         client = genai.Client(api_key=api_key)
     return client
 
-# New stateful IdeaAgent class
 class IdeaAgent:
     """Stateful agent that generates and improves astronomy research ideas."""
     
-    def __init__(self, llm_client=None):
-        """Initialize with an LLM client."""
-        self.llm_client = llm_client or client
+    def __init__(self, api_key):
+        """Initialize with an API key."""
+        self.api_key = api_key
+        self.llm_client = genai.Client(api_key=api_key)
         self.original_prompt = None
         self.current_idea = None
         self.student_profile = None
@@ -54,8 +54,9 @@ class IdeaAgent:
             "additional_context": additional_context
         }
         
-        # Re-use the existing function's logic but store the result
+        # Use the class's API key to generate the research idea
         self.current_idea = generate_research_idea(
+            api_key=self.api_key,  # Pass the API key explicitly
             student_interests=student_interests,
             skill_level=skill_level,
             time_frame=time_frame,
@@ -63,19 +64,18 @@ class IdeaAgent:
             additional_context=additional_context
         )
         
-        # Store the original prompt for reference
-        # Note: This is an approximation since we're not capturing the exact prompt from the function
-        self.original_prompt = f"""Generate a novel and scientifically accurate astronomy research idea for a {skill_level} graduate student.
-        
-Parameters:
-- Student interests: {', '.join(student_interests or [random.choice(ASTRONOMY_SUBFIELDS).name])}
-- Time frame: {time_frame}
-- Available resources: {', '.join(available_resources or ["Public astronomical datasets", "University computing cluster"])}
-- Skill level: {skill_level}
-"""
-        
         return self.current_idea
     
+    # In the IdeaAgent class and functions that make API calls
+    def generate_content(self, prompt):
+        """Generate content using a fresh client"""
+        client = genai.Client(api_key=self.api_key)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-thinking-exp", 
+            contents=prompt
+        )
+        return response.text
+
     def improve_idea(self, feedback: Dict[str, Any]) -> Dict[str, Any]:
         """Improve the current idea based on expert feedback."""
         if not self.current_idea:
@@ -269,8 +269,8 @@ Parameters:
         
         return self.current_idea
 
-# Keep the original functions unchanged for backward compatibility
 def generate_research_idea(
+    api_key: str,  # New parameter
     student_interests: Optional[List[str]] = None,
     skill_level: str = "beginner",
     time_frame: str = "2-3 years",
@@ -281,6 +281,7 @@ def generate_research_idea(
     Generate a tailored astronomy research idea for a graduate student.
     
     Args:
+        api_key: Google AI Studio API key
         student_interests: List of astronomy topics the student is interested in
         skill_level: Student's current skill level (beginner, intermediate, advanced)
         time_frame: Expected duration of the research project
@@ -290,6 +291,9 @@ def generate_research_idea(
     Returns:
         A dictionary containing the research idea and supporting information
     """
+    # Create a client with the provided API key
+    client = genai.Client(api_key=api_key)
+
     # Default values if none provided
     if student_interests is None:
         student_interests = [random.choice(ASTRONOMY_SUBFIELDS).name]
