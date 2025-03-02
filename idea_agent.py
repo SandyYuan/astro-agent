@@ -8,7 +8,7 @@ from subfields import AstronomySubfield, ASTRONOMY_SUBFIELDS
 # from anthropic import Anthropic
 from google import genai
 
-# client = Anthropic(api_key=anthropic_key)
+# client = Anthropic(api_key=anthropic_key)    
 # client = genai.Client(api_key=google_key)
 
 import streamlit as st
