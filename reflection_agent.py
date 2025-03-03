@@ -203,8 +203,8 @@ class AstronomyReflectionAgent:
         """Get evaluation from the LLM."""
         try:
             # Create a fresh client with only required parameters
-            client = genai.Client(api_key=self.api_key)
-            response = client.models.generate_content(
+            # client = genai.Client(api_key=self.api_key)
+            response = self.llm_client.models.generate_content(
                 model="gemini-2.0-flash-thinking-exp", 
                 contents=prompt
                 # No additional parameters

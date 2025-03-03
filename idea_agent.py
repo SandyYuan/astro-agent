@@ -45,9 +45,10 @@ class IdeaAgent:
             "additional_context": additional_context
         }
         
-        # Use the class's API key to generate the research idea
+        # Use the existing client to generate the research idea
         self.current_idea = generate_research_idea(
-            api_key=self.api_key,  # Pass the API key explicitly
+            api_key=self.api_key,
+            client=self.llm_client,  # Pass the existing client instance
             student_interests=student_interests,
             skill_level=skill_level,
             time_frame=time_frame,
@@ -57,11 +58,10 @@ class IdeaAgent:
         
         return self.current_idea
     
-    # In the IdeaAgent class and functions that make API calls
     def generate_content(self, prompt):
-        """Generate content using a fresh client"""
-        client = genai.Client(api_key=self.api_key)
-        response = client.models.generate_content(
+        """Generate content using the existing client"""
+        # Use the already initialized client instead of creating a new one
+        response = self.llm_client.models.generate_content(
             model="gemini-2.0-flash-thinking-exp", 
             contents=prompt
         )
@@ -314,7 +314,8 @@ class IdeaAgent:
         return self.current_idea
 
 def generate_research_idea(
-    api_key: str,  # New parameter
+    api_key: str,
+    client: Optional[Any] = None,  # Add client parameter
     student_interests: Optional[List[str]] = None,
     skill_level: str = "beginner",
     time_frame: str = "2-3 years",
@@ -326,6 +327,7 @@ def generate_research_idea(
     
     Args:
         api_key: Google AI Studio API key
+        client: Optional existing genai.Client instance
         student_interests: List of astronomy topics the student is interested in
         skill_level: Student's current skill level (beginner, intermediate, advanced)
         time_frame: Expected duration of the research project
@@ -335,8 +337,8 @@ def generate_research_idea(
     Returns:
         A dictionary containing the research idea and supporting information
     """
-    # Create a client with the provided API key
-    client = genai.Client(api_key=api_key)
+    # Use the provided client or create a new one if not provided
+    used_client = client or genai.Client(api_key=api_key)
 
     # Default values if none provided
     if student_interests is None:
@@ -486,12 +488,16 @@ ALL PROJECTS MUST:
 - Produce meaningful results even if preliminary
 """
 
-    # Call the LLM to generate the research idea
-    response = client.models.generate_content(
-        model="gemini-2.0-flash-thinking-exp", contents=prompt
-    )
-    
-    idea_text = response.text
+    # Call the LLM to generate the research idea using the existing or new client
+    try:
+        response = used_client.models.generate_content(
+            model="gemini-2.0-flash-thinking-exp", contents=prompt
+        )
+        
+        idea_text = response.text
+    except Exception as e:
+        print(f"Error generating research idea: {str(e)}")
+        raise RuntimeError(f"Failed to generate research idea: {str(e)}")
     
     # Parse the response into structured sections
     sections = [
@@ -569,11 +575,16 @@ def get_title_from_text(text: str) -> str:
     # Fallback
     return "Astronomy Research Proposal"
 
-def generate_multiple_ideas(count: int = 3, **kwargs) -> List[Dict[str, Any]]:
+def generate_multiple_ideas(count: int = 3, api_key: str = None, client: Optional[Any] = None, **kwargs) -> List[Dict[str, Any]]:
     """Generate multiple research ideas with variations."""
+    # Use the provided client or create a new one
+    used_client = client
+    if not used_client and api_key:
+        used_client = genai.Client(api_key=api_key)
+    
     ideas = []
     for _ in range(count):
-        ideas.append(generate_research_idea(**kwargs))
+        ideas.append(generate_research_idea(api_key=api_key, client=used_client, **kwargs))
     return ideas
 
 if __name__ == "__main__":
