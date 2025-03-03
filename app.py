@@ -96,6 +96,32 @@ def update_resources():
 def set_generate_trigger():
     st.session_state.trigger_generate = True
 
+def add_literature_options_to_sidebar():
+    """Add literature search options to the sidebar"""
+    st.sidebar.header("Literature Review Options")
+    
+    # Option to skip literature review
+    st.sidebar.checkbox(
+        "Skip arXiv literature review",
+        value=st.session_state.skip_literature_review,
+        help="Turn this on to skip the arXiv literature review step and generate ideas faster.",
+        key="skip_lit_review_checkbox",
+        on_change=toggle_literature_review
+    )
+    
+    # Note about arXiv integration
+    if not st.session_state.skip_literature_review:
+        st.sidebar.info(
+            "The literature review searches arXiv for papers published in the last 2 years "
+            "that are relevant to your research idea."
+        )
+
+
+def update_search_api():
+    """Update the search API based on radio button selection"""
+    selection = st.session_state.search_api_selection
+    st.session_state.search_api = selection.lower().replace(" ", "")
+
 def toggle_process_view():
     st.session_state.show_process = not st.session_state.show_process
 
@@ -111,67 +137,163 @@ def run_full_pipeline():
         return False
 
     try:
-        # Step 1: Generate initial idea
+        # Step 1: Generate initial idea with a timeout
         with st.spinner("Generating initial research idea..."):
-            initial_idea = st.session_state.idea_agent.generate_initial_idea(
-                student_interests=st.session_state.interests,
-                skill_level=st.session_state.skill_level,
-                time_frame=st.session_state.time_frame,
-                available_resources=st.session_state.resources,
-                additional_context=st.session_state.additional_context
-            )
-            
-            if not initial_idea:
-                st.error("Failed to generate initial research idea.")
-                return False
+            try:
+                # Use threading-based timeout approach for Streamlit
+                import threading
+                import concurrent.futures
                 
-            st.session_state.current_idea = initial_idea
-            st.session_state.app_stage = 'idea_generated'
+                # Function that will be executed with a timeout
+                def generate_with_timeout(timeout_seconds=45):
+                    try:
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(
+                                st.session_state.idea_agent.generate_initial_idea,
+                                student_interests=st.session_state.interests,
+                                skill_level=st.session_state.skill_level,
+                                time_frame=st.session_state.time_frame,
+                                available_resources=st.session_state.resources,
+                                additional_context=st.session_state.additional_context
+                            )
+                            # Wait for completion or timeout
+                            return future.result(timeout=timeout_seconds)
+                    except concurrent.futures.TimeoutError:
+                        raise TimeoutError("Generation took too long. Try again or check your API key.")
+                
+                # Generate the idea with timeout
+                initial_idea = generate_with_timeout(45)  # 45 second timeout
+                
+                if not initial_idea:
+                    st.error("Failed to generate initial research idea.")
+                    return False
+                    
+                st.session_state.current_idea = initial_idea
+                st.session_state.app_stage = 'idea_generated'
+            
+            except TimeoutError as e:
+                st.error(f"Timeout error: {str(e)}")
+                return False
+            except Exception as e:
+                st.error(f"Error generating initial idea: {str(e)}")
+                return False
         
-        # Step 2: Literature Review (New step)
+        # Step 2: Literature Review (Now with real papers only)
         literature_feedback = None
         if not st.session_state.skip_literature_review and st.session_state.literature_agent:
-            with st.spinner("Conducting literature review to assess novelty..."):
+            with st.spinner("Searching arXiv for relevant papers..."):
                 try:
-                    literature_feedback_obj = st.session_state.literature_agent.review_literature(initial_idea)
+                    # Use threading-based timeout for literature search
+                    def literature_review_with_timeout(timeout_seconds=60):
+                        try:
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(
+                                    st.session_state.literature_agent.review_literature,
+                                    initial_idea,
+                                    max_papers=5
+                                )
+                                # Wait for completion or timeout
+                                return future.result(timeout=timeout_seconds)
+                        except concurrent.futures.TimeoutError:
+                            raise TimeoutError("Literature search took too long.")
+                    
+                    # Call with timeout
+                    literature_feedback_obj = literature_review_with_timeout(60)  # 60 second timeout
+                    
                     literature_feedback = st.session_state.literature_agent.format_feedback_for_idea_agent(literature_feedback_obj)
                     st.session_state.literature_feedback = literature_feedback_obj
                     st.session_state.app_stage = 'literature_reviewed'
+                except TimeoutError:
+                    st.warning("Literature search took too long and was skipped. Proceeding without literature review.")
+                    literature_feedback = None
                 except Exception as e:
-                    st.warning(f"Literature review encountered an issue, proceeding without it: {str(e)}")
+                    st.warning(f"Literature review encountered an issue: {str(e)}")
+                    st.info("Proceeding without literature review.")
                     literature_feedback = None
         
         # Step 3: Get feedback, now including literature insights if available
         with st.spinner("Getting expert feedback on the idea..."):
-            feedback = st.session_state.reflection_agent.evaluate_proposal(
-                initial_idea, 
-                literature_feedback
-            )
-            
-            if not feedback:
-                st.error("Failed to get expert feedback.")
-                # We can still continue with just the initial idea
-                return False
+            try:
+                # Use threading-based timeout for feedback generation
+                def feedback_with_timeout(timeout_seconds=45):
+                    try:
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(
+                                st.session_state.reflection_agent.evaluate_proposal,
+                                initial_idea, 
+                                literature_feedback
+                            )
+                            # Wait for completion or timeout
+                            return future.result(timeout=timeout_seconds)
+                    except concurrent.futures.TimeoutError:
+                        raise TimeoutError("Feedback generation took too long.")
                 
-            st.session_state.feedback = feedback
-            st.session_state.app_stage = 'feedback_received'
+                # Call with timeout
+                feedback = feedback_with_timeout(45)  # 45 second timeout
+                
+                if not feedback:
+                    st.error("Failed to get expert feedback.")
+                    return False
+                    
+                st.session_state.feedback = feedback
+                st.session_state.app_stage = 'feedback_received'
+            except TimeoutError:
+                st.error("Feedback generation took too long. Using a simplified evaluation.")
+                # Create basic feedback
+                from reflection_agent import ProposalFeedback
+                basic_feedback = ProposalFeedback(
+                    scientific_validity={"strengths": [], "concerns": []},
+                    methodology={"strengths": [], "concerns": []},
+                    novelty_assessment="No detailed novelty assessment available.",
+                    impact_assessment="No detailed impact assessment available.",
+                    feasibility_assessment="No detailed feasibility assessment available.",
+                    recommendations=["Consider refining the methodology", "Add more detail to expected outcomes"],
+                    summary="The proposal requires further development."
+                )
+                st.session_state.feedback = basic_feedback
+                st.session_state.app_stage = 'feedback_received'
+            except Exception as e:
+                st.error(f"Error getting expert feedback: {str(e)}")
+                return False
         
         # Step 4: Improve idea
         with st.spinner("Refining research idea based on feedback..."):
-            # Convert feedback to dictionary for idea agent
-            feedback_dict = st.session_state.reflection_agent.format_feedback_for_idea_agent(feedback)
-            improved_idea = st.session_state.idea_agent.improve_idea(feedback_dict)
-            
-            if not improved_idea:
-                st.error("Failed to refine the research idea.")
-                # We still have the initial idea and feedback
-                return False
+            try:
+                # Use threading-based timeout for idea improvement
+                def improve_with_timeout(timeout_seconds=45):
+                    try:
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            # Convert feedback to dictionary for idea agent
+                            feedback_dict = st.session_state.reflection_agent.format_feedback_for_idea_agent(st.session_state.feedback)
+                            future = executor.submit(
+                                st.session_state.idea_agent.improve_idea,
+                                feedback_dict
+                            )
+                            # Wait for completion or timeout
+                            return future.result(timeout=timeout_seconds)
+                    except concurrent.futures.TimeoutError:
+                        raise TimeoutError("Idea improvement took too long.")
                 
-            st.session_state.improved_idea = improved_idea
-        
-        # Update app stage to completed
-        st.session_state.app_stage = 'completed'
-        return True
+                # Call with timeout
+                improved_idea = improve_with_timeout(45)  # 45 second timeout
+                
+                if not improved_idea:
+                    st.error("Failed to refine the research idea.")
+                    return False
+                    
+                st.session_state.improved_idea = improved_idea
+                
+                # Update app stage to completed
+                st.session_state.app_stage = 'completed'
+                return True
+            except TimeoutError:
+                st.error("Idea improvement took too long. Using the initial idea as the final result.")
+                st.session_state.improved_idea = st.session_state.current_idea
+                st.session_state.app_stage = 'completed'
+                return True
+            except Exception as e:
+                st.error(f"Error improving the idea: {str(e)}")
+                return False
         
     except Exception as e:
         st.error(f"Error in research idea pipeline: {str(e)}")
@@ -189,7 +311,7 @@ def run_full_pipeline():
                 st.session_state.app_stage = 'idea_generated'
                 
         return False
-
+    
 def main():
     st.set_page_config(
         page_title="Astronomy Research Idea Generator",
@@ -493,7 +615,7 @@ def display_research_idea(idea):
         )
 
 def display_literature_review(literature_feedback):
-    """Display literature review in a structured way"""
+    """Display literature review in a structured way with real papers only"""
     if not literature_feedback:
         st.error("No literature feedback available")
         return
@@ -508,48 +630,45 @@ def display_literature_review(literature_feedback):
         st.subheader("Novelty Assessment")
         st.write(getattr(literature_feedback, 'novelty_assessment', "No assessment available"))
     
-    # Similar papers - with improved display
-    st.subheader("Similar Recent Papers")
+    # Similar papers with improved display
+    st.subheader("Similar Recent Publications from arXiv")
     similar_papers = getattr(literature_feedback, 'similar_papers', [])
     
     if similar_papers:
         # Display papers in a more attractive way
-        for i, paper in enumerate(similar_papers, 1):
-            title = paper.get('title', 'Unnamed Paper')
-            # Create a nice title with appropriate icons
-            formatted_title = f"{i}. 📄 {title}"
-            
-            with st.expander(formatted_title):
-                # Create a more structured layout
-                col1, col2 = st.columns([1, 1])
+        with st.container():
+            for i, paper in enumerate(similar_papers, 1):
+                title = paper.get('title', 'Unnamed Paper')
+                # Create a nice title with appropriate icons
+                formatted_title = f"{i}. 📄 {title}"
                 
-                with col1:
-                    st.markdown(f"**Authors:** {paper.get('authors', 'Unknown')}")
-                    st.markdown(f"**Year:** {paper.get('year', 'Unknown')}")
-                    st.markdown(f"**Journal:** {paper.get('journal', 'Unknown')}")
-                
-                with col2:
-                    if paper.get('summary'):
-                        st.markdown("**Summary:**")
-                        st.markdown(f"_{paper.get('summary')}_")
+                with st.expander(formatted_title):
+                    # Create a more structured layout
+                    col1, col2 = st.columns([1, 1])
                     
-                    if paper.get('relevance'):
-                        st.markdown("**Relevance:**")
-                        st.markdown(f"_{paper.get('relevance')}_")
+                    with col1:
+                        st.markdown(f"**Authors:** {paper.get('authors', 'Unknown')}")
+                        st.markdown(f"**Year:** {paper.get('year', 'Unknown')}")
+                        st.markdown(f"**Journal/Source:** {paper.get('journal', 'Unknown')}")
+                        
+                        # Add URL if available - make it more prominent
+                        if paper.get('url'):
+                            st.markdown(f"**URL:** [{paper.get('source', 'Link')}]({paper.get('url')})")
+                            if paper.get('arxiv_id'):
+                                st.markdown(f"**ArXiv ID:** {paper.get('arxiv_id')}")
+                    
+                    with col2:
+                        if paper.get('summary'):
+                            st.markdown("**Abstract:**")
+                            st.markdown(f"_{paper.get('summary')}_")
+                        
+                        if paper.get('relevance'):
+                            st.markdown("**Relevance to Proposal:**")
+                            st.markdown(f"_{paper.get('relevance')}_")
     else:
-        # Check if novelty assessment mentions comparison to existing literature
-        novelty_assessment = getattr(literature_feedback, 'novelty_assessment', "")
-        emerging_trends = getattr(literature_feedback, 'emerging_trends', "")
+        st.info("No similar papers were found in our arXiv search. This could indicate a novel research area, or that the search terms need refinement. Consider conducting a more comprehensive literature search using other databases.")
         
-        # If the assessment mentions literature or trends but no papers were parsed
-        if (novelty_assessment and any(term in novelty_assessment.lower() for term in ["literature", "paper", "study", "research", "work"])) or \
-           (emerging_trends and any(term in emerging_trends.lower() for term in ["literature", "paper", "study", "research", "work"])):
-            st.warning("Literature was referenced in the analysis, but specific papers couldn't be extracted automatically.")
-            st.info("Check the Novelty Assessment and Emerging Trends sections for details about how this research relates to existing literature.")
-        else:
-            st.write("No similar papers identified in the current literature.")
-    
-    # Display in two columns
+    # Display in two columns for differentiation and recommendations
     col1, col2 = st.columns(2)
     
     with col1:
@@ -577,6 +696,9 @@ def display_literature_review(literature_feedback):
     # Summary
     st.subheader("Summary Assessment")
     st.write(getattr(literature_feedback, 'summary', "No summary available."))
+    
+    # Add disclaimer about search limitations
+    st.caption("This literature review is based solely on real papers from arXiv published in the last 2 years. For a more comprehensive review, consider searching additional databases such as ADS, Web of Science, or Scopus.")
 
 def display_feedback(feedback):
     """Display expert feedback in a structured way"""

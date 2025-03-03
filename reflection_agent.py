@@ -43,7 +43,7 @@ class AstronomyReflectionAgent:
     def evaluate_proposal(self, proposal: Dict[str, Any], literature_feedback: Optional[Dict[str, Any]] = None) -> ProposalFeedback:
         """Evaluate a proposal and return structured feedback."""
         # Create a detailed prompt for the LLM
-        prompt = self._create_evaluation_prompt(proposal)
+        prompt = self._create_evaluation_prompt(proposal, literature_feedback)
         
         # Get response from LLM
         response = self._get_llm_evaluation(prompt)

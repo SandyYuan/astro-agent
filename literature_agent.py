@@ -1,10 +1,16 @@
 import json
-import random
+import time
+import datetime
+import re
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from dateutil.relativedelta import relativedelta
 
-# Correct import for Google GenAI
+# For Google GenAI
 from google import genai
+
+# Import arxiv package for API access
+import arxiv
 
 @dataclass
 class LiteratureFeedback:
@@ -24,38 +30,215 @@ class LiteratureAgent:
         """Initialize with an API key"""
         self.api_key = api_key
         self.llm_client = genai.Client(api_key=self.api_key)
+        
+        # ArXiv categories relevant to astronomy
+        self.astronomy_categories = [
+            'astro-ph.GA',  # Galaxies and cosmology
+            'astro-ph.CO',  # Cosmology
+            'astro-ph.EP',  # Earth and planetary science
+            'astro-ph.HE',  # High-energy astrophysics
+            'astro-ph.IM',  # Instrumentation and methods
+            'astro-ph.SR',  # Solar and stellar astrophysics
+        ]
     
-    def review_literature(self, idea: Dict[str, Any]) -> LiteratureFeedback:
+    def review_literature(self, idea: Dict[str, Any], max_papers: int = 5) -> LiteratureFeedback:
         """
         Review recent astronomy literature to evaluate the novelty of an idea
         and suggest improvements to make it more innovative
         
         Args:
             idea: The research idea to evaluate
+            max_papers: Maximum number of papers to retrieve
             
         Returns:
             LiteratureFeedback object containing analysis and suggestions
         """
-        prompt = self._create_literature_review_prompt(idea)
+        # Extract relevant data for search
+        title = idea.get("title", "")
+        research_question = idea.get("idea", {}).get("Research Question", "")
+        subfields = idea.get("subfields", [])
         
-        # Use the correct method for generating content with Gemini
-        response = self.llm_client.models.generate_content(
-            model="gemini-2.0-flash-thinking-exp", 
-            contents=prompt
-        )
+        # Generate search query from the idea
+        search_query = self._generate_search_query(title, research_question, subfields)
         
-        literature_review = self._parse_literature_review(response.text)
+        # Search for relevant papers
+        try:
+            papers = self._search_arxiv(search_query, max_papers)
+        except Exception as e:
+            print(f"ArXiv search failed: {str(e)}")
+            # Return empty papers list if search fails - no simulated papers
+            papers = []
+        
+        # Generate literature review based on found papers
+        literature_review = self._generate_literature_review(idea, papers)
+        
         return literature_review
     
-    def _create_literature_review_prompt(self, idea: Dict[str, Any]) -> str:
-        """Create a detailed prompt for literature review"""
+    def _generate_search_query(self, title: str, research_question: str, subfields: List[str]) -> str:
+        """Generate a search query based on the research idea"""
+        # Extract key terms from the title and research question
+        prompt = f"""
+        Extract the 4-6 most important search terms from this astronomy research proposal.
+        
+        Title: {title}
+        
+        Research Question: {research_question}
+        
+        Subfields: {', '.join(subfields)}
+        
+        Return only a space-separated list of the most specific and relevant technical terms that would appear in related academic papers.
+        Focus on specific methods, objects, or phenomena being studied rather than general terms.
+        
+        Format your response as: term1 term2 term3 term4 term5 term6
+        """
+        
+        try:
+            response = self.llm_client.models.generate_content(
+                model="gemini-2.0-flash-thinking-exp", 
+                contents=prompt
+            )
+            search_terms = response.text.strip()
+            
+            # Clean up the response to extract just the terms
+            if ' ' in search_terms:
+                terms = [term.strip() for term in search_terms.split(' ')]
+            else:
+                # Otherwise split by newlines or other potential separators
+                terms = re.split(r'[\n\r,;]', search_terms)
+                terms = [term.strip() for term in terms if term.strip()]
+            
+            # Filter out any non-relevant items and join with "AND" for better search
+            terms = [term for term in terms if len(term) > 2 and not term.startswith(('Format', 'Return', 'Focus'))]
+            
+            # Add category filters for astronomy
+            category_filters = []
+            for subfield in subfields:
+                # Map subfields to appropriate arXiv categories
+                if "exoplanet" in subfield.lower() or "planetary" in subfield.lower():
+                    category_filters.append("cat:astro-ph.EP")  # Earth and planetary
+                elif "galaxy" in subfield.lower() or "galaxies" in subfield.lower():
+                    category_filters.append("cat:astro-ph.GA")  # Galaxies
+                elif "cosmology" in subfield.lower() or "universe" in subfield.lower():
+                    category_filters.append("cat:astro-ph.CO")  # Cosmology
+                elif "star" in subfield.lower() or "stellar" in subfield.lower() or "solar" in subfield.lower():
+                    category_filters.append("cat:astro-ph.SR")  # Solar and stellar
+                elif "high-energy" in subfield.lower() or "black hole" in subfield.lower():
+                    category_filters.append("cat:astro-ph.HE")  # High-energy astrophysics
+                elif "instrument" in subfield.lower() or "method" in subfield.lower() or "data" in subfield.lower():
+                    category_filters.append("cat:astro-ph.IM")  # Instrumentation and methods
+            
+            # If no specific categories were matched, include all astronomy categories
+            if not category_filters:
+                category_filters = ["cat:astro-ph"]
+            
+            # Combine terms and category filters
+            final_query = " AND ".join(terms + category_filters)
+            
+            return final_query
+        
+        except Exception as e:
+            print(f"Error generating search query: {str(e)}")
+            # Fallback to basic search using title and categories
+            return f"{title} AND cat:astro-ph"
+    
+    def _search_arxiv(self, query: str, max_papers: int = 5) -> List[Dict[str, Any]]:
+        """Search arXiv for relevant papers from the last 10 years"""
+        # Calculate date from 10 years ago
+        ten_years_ago = datetime.datetime.now() - relativedelta(years=10)
+        
+        # Create the search query
+        search = arxiv.Search(
+            query=query,
+            max_results=20,  # Request more papers than needed to filter by date
+            sort_by=arxiv.SortCriterion.Relevance
+        )
+        
+        # Extract papers
+        papers = []
+        try:
+            for result in search.results():
+                try:
+                    # Fix datetime comparison issue by making both naive
+                    # Get the publication date and remove timezone info if present
+                    pub_date = result.published
+                    if pub_date and hasattr(pub_date, 'tzinfo') and pub_date.tzinfo is not None:
+                        # Convert to naive datetime by replacing tzinfo with None
+                        pub_date = pub_date.replace(tzinfo=None)
+                    
+                    # Check if the paper is from the last 10 years
+                    if pub_date and pub_date >= ten_years_ago:
+                        # Format authors
+                        author_names = [author.name for author in result.authors]
+                        if len(author_names) > 3:
+                            formatted_authors = f"{author_names[0]} et al."
+                        else:
+                            formatted_authors = ", ".join(author_names)
+                        
+                        # Format date
+                        pub_date_str = pub_date.strftime('%Y-%m-%d') if pub_date else "Unknown"
+                        pub_year = pub_date.year if pub_date else datetime.datetime.now().year
+                        
+                        # Get paper URL
+                        paper_url = result.entry_id if result.entry_id else ""
+                        if not paper_url.startswith("http"):
+                            paper_url = f"https://arxiv.org/abs/{result.entry_id.split('/')[-1]}"
+                        
+                        # Clean abstract
+                        abstract = result.summary.replace('\n', ' ').strip() if result.summary else ""
+                        
+                        papers.append({
+                            'title': result.title.strip() if result.title else "Untitled",
+                            'authors': formatted_authors,
+                            'year': str(pub_year),
+                            'journal': "arXiv",
+                            'arxiv_id': result.entry_id.split('/')[-1] if result.entry_id else "",
+                            'abstract': abstract,
+                            'summary': abstract[:500] + "..." if len(abstract) > 500 else abstract,
+                            'published_date': pub_date_str,
+                            'url': paper_url,
+                            'source': "arXiv",
+                            'categories': result.categories
+                        })
+                        
+                        # Stop once we have enough papers
+                        if len(papers) >= max_papers:
+                            break
+                except Exception as e:
+                    print(f"Error processing paper: {str(e)}")
+                    continue
+        except Exception as e:
+            print(f"Error retrieving arXiv results: {str(e)}")
+        
+        return papers
+    
+    def _generate_literature_review(self, idea: Dict[str, Any], papers: List[Dict[str, Any]]) -> LiteratureFeedback:
+        """Generate a literature review based on the found papers"""
+        # Extract idea details
         title = idea.get("title", "")
         research_question = idea.get("idea", {}).get("Research Question", "")
         methodology = idea.get("idea", {}).get("Methodology", "")
         subfields = ", ".join(idea.get("subfields", []))
         
+        # Format papers for prompt
+        papers_text = ""
+        for i, paper in enumerate(papers, 1):
+            papers_text += f"""
+            Paper {i}:
+            Title: {paper.get('title', '')}
+            Authors: {paper.get('authors', '')}
+            Year: {paper.get('year', '')}
+            Journal/Source: {paper.get('journal', '')}
+            {"ArXiv ID: " + paper.get('arxiv_id', '') if paper.get('arxiv_id') else ""}
+            Abstract: {paper.get('summary', '')}
+            """
+        
+        # If no papers were found, indicate this
+        if not papers:
+            papers_text = "No directly relevant papers were found in the recent literature matching the search criteria."
+        
+        # Create prompt for literature review
         prompt = f"""
-        You are an expert astronomy researcher with access to the latest scientific literature. You need to evaluate the novelty of this research proposal and suggest ways to make it more innovative while ensuring it remains scientifically grounded and feasible.
+        You are an expert astronomy researcher with access to the latest scientific literature. You need to evaluate the novelty of this research proposal based on the provided papers from the last 10 years and suggest ways to make it more innovative while ensuring it remains scientifically grounded and feasible.
         
         RESEARCH PROPOSAL TO EVALUATE:
         
@@ -69,24 +252,26 @@ class LiteratureAgent:
         Methodology:
         {methodology}
         
+        RECENT LITERATURE (published in the last 10 years):
+        
+        {papers_text}
+        
         YOUR TASK:
         
-        1. LITERATURE SEARCH: Identify 3-5 recent papers (published in the last 1-2 years) that are most similar to this proposal.
-        
-        2. NOVELTY ASSESSMENT: Analyze how the proposal compares to existing literature. Identify aspects that are:
-           - Already well-studied (potential overlap)
+        1. LITERATURE ANALYSIS: Analyze how the proposal relates to the provided papers. Identify aspects that are:
+           - Already well-studied in recent literature (potential overlap)
            - Partially explored but with gaps
-           - Potentially novel contributions
+           - Potentially novel contributions not addressed in the papers
         
-        3. DIFFERENTIATION SUGGESTIONS: Provide specific recommendations on how the proposal could be made more novel while remaining scientifically grounded. Focus on:
+        2. DIFFERENTIATION SUGGESTIONS: Provide specific recommendations on how the proposal could be made more novel while remaining scientifically grounded. Focus on:
            - Methodological innovations
            - Unique data combinations
            - Unexplored parameter spaces
            - Novel theoretical frameworks
         
-        4. EMERGING TRENDS: Identify cutting-edge developments in this research area that could be incorporated.
+        3. EMERGING TRENDS: Based on the papers and your expertise, identify cutting-edge developments in this research area that could be incorporated.
         
-        5. NOVELTY SCORE: Rate the current novelty of the proposal on a scale of 1-10, where:
+        4. NOVELTY SCORE: Rate the current novelty of the proposal on a scale of 1-10, where:
            - 1-3: Largely replicates existing work
            - 4-6: Incremental advance over existing work
            - 7-8: Contains significant novel elements
@@ -94,12 +279,8 @@ class LiteratureAgent:
            
         FORMAT YOUR RESPONSE AS FOLLOWS:
         
-        RECENT SIMILAR PAPERS:
-        1. [Title] by [Authors] ([Year]) - [Journal/ArXiv ID]
-        Brief summary: [1-2 sentence summary]
-        Relevance: [How this paper relates to the proposal]
-        
-        2. [Next paper...]
+        SIMILAR RECENT PAPERS:
+        [For each relevant paper, provide a 1-2 sentence assessment of its relevance to the proposal]
         
         NOVELTY ASSESSMENT:
         [Detailed paragraph analyzing the proposal's novelty against existing literature]
@@ -126,6 +307,7 @@ class LiteratureAgent:
         
         IMPORTANT GUIDELINES:
         - Be scientifically accurate and realistic in your assessment
+        - If no papers were found, be honest about the limitations of the search and potential implications
         - Ensure suggested innovations are methodologically feasible
         - Provide specific, actionable feedback, not general advice
         - Focus on making the idea novel in meaningful ways that advance scientific understanding
@@ -133,175 +315,83 @@ class LiteratureAgent:
         - Keep suggestions grounded in current astronomical capabilities and theoretical frameworks
         """
         
-        return prompt
+        try:
+            # Get response from LLM
+            response = self.llm_client.models.generate_content(
+                model="gemini-2.0-flash-thinking-exp", 
+                contents=prompt
+            )
+            
+            # Add relevance to the papers based on the review
+            self._add_relevance_to_papers(papers, response.text)
+            
+            # Parse the text response
+            literature_review = self._parse_literature_review(
+                response.text, 
+                papers
+            )
+            
+            return literature_review
+        
+        except Exception as e:
+            print(f"Error generating literature review: {str(e)}")
+            # Create a basic review when analysis fails
+            return self._create_basic_review(papers)
     
-    def _parse_literature_review(self, review_text: str) -> LiteratureFeedback:
+    def _add_relevance_to_papers(self, papers: List[Dict[str, Any]], review_text: str) -> None:
+        """Add relevance assessments to the papers based on the review text"""
+        # Extract the "SIMILAR RECENT PAPERS" section
+        similar_papers_section = self._extract_section(review_text, "SIMILAR RECENT PAPERS:", "NOVELTY ASSESSMENT:")
+        
+        # Process each paper to find its relevance assessment
+        for paper in papers:
+            title = paper.get('title', '').lower()
+            
+            # Try to find a mention of this paper in the similar papers section
+            for line in similar_papers_section.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Check if this line mentions the paper
+                if title and len(title) > 10 and title[:15] in line.lower():
+                    # Found a mention of this paper, extract the relevance
+                    paper['relevance'] = line
+                    # Clean up the format: "Paper Title - Relevance information"
+                    if ' - ' in paper['relevance']:
+                        paper['relevance'] = paper['relevance'].split(' - ', 1)[1]
+                    break
+            
+            # If no relevance found, add a default one
+            if 'relevance' not in paper:
+                paper['relevance'] = "Relevance to the research proposal not specifically assessed."
+    
+    def _parse_literature_review(self, review_text: str, papers: List[Dict[str, Any]]) -> LiteratureFeedback:
         """Parse the literature review text into structured feedback"""
-        # Extract paper information
-        papers_section = self._extract_section(review_text, "RECENT SIMILAR PAPERS:", "NOVELTY ASSESSMENT:")
-        papers = []
-        
-        # First attempt: Parse by detecting numbered items and structure
-        paper_blocks = []
-        current_block = []
-        in_paper_section = False
-        
-        # Split the paper section into blocks for each paper
-        for line in papers_section.split('\n'):
-            line = line.strip()
-            if not line:
-                if current_block:  # End of a block
-                    paper_blocks.append('\n'.join(current_block))
-                    current_block = []
-                continue
-                
-            # Check for a new paper entry (starts with number)
-            if line and line[0].isdigit() and ('. ' in line or '.' in line):
-                if current_block:  # Save previous block if it exists
-                    paper_blocks.append('\n'.join(current_block))
-                    current_block = []
-                in_paper_section = True
-            
-            if in_paper_section:
-                current_block.append(line)
-        
-        # Add the last block if it exists
-        if current_block:
-            paper_blocks.append('\n'.join(current_block))
-        
-        # Process each detected paper block
-        for block in paper_blocks:
-            lines = block.split('\n')
-            if not lines:
-                continue
-                
-            # Initialize with default values
-            paper_info = {
-                "title": "",
-                "authors": "",
-                "year": "",
-                "journal": "",
-                "summary": "",
-                "relevance": ""
-            }
-            
-            # First line should contain the paper title and possibly authors/year
-            first_line = lines[0]
-            
-            # Check various formats the model might use
-            # Format 1: "1. Title by Authors (Year) - Journal"
-            if first_line and first_line[0].isdigit():
-                try:
-                    # Remove the number prefix
-                    title_part = first_line.split(".", 1)[1].strip() if "." in first_line else first_line
-                    
-                    # Case 1: Standard format with "by" and parentheses
-                    if " by " in title_part and "(" in title_part:
-                        title_and_rest = title_part.split(" by ", 1)
-                        paper_info["title"] = title_and_rest[0].strip()
-                        
-                        if len(title_and_rest) > 1:
-                            rest = title_and_rest[1].strip()
-                            # Extract author and year
-                            if "(" in rest:
-                                authors, year_part = rest.split("(", 1)
-                                paper_info["authors"] = authors.strip()
-                                
-                                # Extract year and possibly journal
-                                year_part = year_part.strip(")")
-                                if " - " in year_part:
-                                    year, journal = year_part.split(" - ", 1)
-                                    paper_info["year"] = year.strip()
-                                    paper_info["journal"] = journal.strip()
-                                else:
-                                    paper_info["year"] = year_part.strip()
-                    # Case 2: Just a title with no author/year information
-                    else:
-                        paper_info["title"] = title_part
-                        
-                except Exception:
-                    # If parsing fails, just use the whole line as title
-                    paper_info["title"] = first_line
-            
-            # Extract information from subsequent lines
-            for line in lines[1:]:
-                line = line.strip()
-                
-                # Look for summary and relevance in different formats
-                if "summary:" in line.lower():
-                    paper_info["summary"] = line.split(":", 1)[1].strip()
-                elif "relevance:" in line.lower():
-                    paper_info["relevance"] = line.split(":", 1)[1].strip()
-                # If line contains author or publication info not caught earlier
-                elif "author" in line.lower() and not paper_info["authors"]:
-                    paper_info["authors"] = line.split(":", 1)[1].strip() if ":" in line else line
-                elif "journal" in line.lower() and not paper_info["journal"]:
-                    paper_info["journal"] = line.split(":", 1)[1].strip() if ":" in line else line
-                elif "year" in line.lower() and not paper_info["year"]:
-                    paper_info["year"] = line.split(":", 1)[1].strip() if ":" in line else line
-            
-            # If we at least have a title, add the paper
-            if paper_info["title"]:
-                papers.append(paper_info)
-        
-        # If no papers were found using structured parsing, try a simpler approach
-        if not papers and "paper" in papers_section.lower():
-            # Just extract what look like paper titles - any lines that might be titles
-            for line in papers_section.split('\n'):
-                line = line.strip()
-                if line and len(line) > 15 and not line.startswith("Brief") and not line.startswith("Relevance"):
-                    # This looks like it might be a paper title
-                    if line[0].isdigit() and '. ' in line:
-                        title = line.split('. ', 1)[1]
-                    else:
-                        title = line
-                    
-                    papers.append({
-                        "title": title,
-                        "authors": "",
-                        "year": "",
-                        "journal": "",
-                        "summary": "Details not available",
-                        "relevance": "Referenced in literature review"
-                    })
-        
-        # Fallback: If we still found no papers but the novelty assessment mentions papers
-        novelty_assessment = self._extract_section(review_text, "NOVELTY ASSESSMENT:", "DIFFERENTIATION SUGGESTIONS:")
-        if not papers and novelty_assessment and ("paper" in novelty_assessment.lower() or "stud" in novelty_assessment.lower() or "research" in novelty_assessment.lower()):
-            # Create a placeholder entry to indicate papers exist but weren't parsed
-            papers.append({
-                "title": "Related work mentioned in assessment",
-                "authors": "Various researchers",
-                "year": "Recent",
-                "journal": "Multiple sources",
-                "summary": "The literature review identified relevant work but specific papers couldn't be automatically extracted.",
-                "relevance": "See novelty assessment for details on how this research relates to existing literature."
-            })
-        
-        # Extract other sections
+        # Extract novelty assessment
         novelty_assessment = self._extract_section(review_text, "NOVELTY ASSESSMENT:", "DIFFERENTIATION SUGGESTIONS:")
         
         # Extract differentiation suggestions
         differentiation_section = self._extract_section(review_text, "DIFFERENTIATION SUGGESTIONS:", "EMERGING TRENDS:")
         differentiation_suggestions = []
         
-        for line in differentiation_section.strip().split("\n"):
+        for line in differentiation_section.strip().split('\n'):
             line = line.strip()
             if line and (line[0].isdigit() or (len(line) > 1 and line[0] == '-')):
                 # Remove the number or dash prefix
                 suggestion = line[1:].strip() if line[0].isdigit() else line[2:].strip()
-                differentiation_suggestions.append(suggestion)
+                if suggestion and len(suggestion) > 10:  # Ensure it's meaningful
+                    differentiation_suggestions.append(suggestion)
         
         # Extract emerging trends
         emerging_trends = self._extract_section(review_text, "EMERGING TRENDS:", "NOVELTY SCORE:")
         
-        # Extract novelty score with better error handling
+        # Extract novelty score
         novelty_score_section = self._extract_section(review_text, "NOVELTY SCORE:", "KEY RECOMMENDATIONS")
         novelty_score = 5.0  # Default score
         
         try:
             # Look for a number in the section
-            import re
             score_match = re.search(r'\b([0-9]|10)(\.[0-9])?\b', novelty_score_section)
             if score_match:
                 novelty_score = float(score_match.group(0))
@@ -318,19 +408,34 @@ class LiteratureAgent:
         recommendations_section = self._extract_section(review_text, "KEY RECOMMENDATIONS FOR IMPROVING NOVELTY:", "SUMMARY:")
         recommendations = []
         
-        for line in recommendations_section.strip().split("\n"):
+        for line in recommendations_section.strip().split('\n'):
             line = line.strip()
             if line and (line[0].isdigit() or (len(line) > 1 and line[0] == '-')):
                 # Remove the number or dash prefix
                 rec = line[1:].strip() if line[0].isdigit() else line[2:].strip()
-                recommendations.append(rec)
+                if rec and len(rec) > 10:  # Ensure it's meaningful
+                    recommendations.append(rec)
         
         # Extract summary
         summary = self._extract_section(review_text, "SUMMARY:", "")
         
+        # Create formatted paper list for feedback
+        similar_papers = []
+        for paper in papers:
+            similar_papers.append({
+                'title': paper.get('title', ''),
+                'authors': paper.get('authors', ''),
+                'year': paper.get('year', ''),
+                'journal': paper.get('journal', ''),
+                'summary': paper.get('summary', ''),
+                'relevance': paper.get('relevance', 'Relevance to the research proposal not specifically assessed.'),
+                'url': paper.get('url', ''),
+                'source': paper.get('source', '')
+            })
+        
         # Create and return feedback object
         return LiteratureFeedback(
-            similar_papers=papers,
+            similar_papers=similar_papers,
             novelty_assessment=novelty_assessment,
             differentiation_suggestions=differentiation_suggestions,
             emerging_trends=emerging_trends,
@@ -359,6 +464,48 @@ class LiteratureAgent:
             # Return empty string on any error
             return ""
     
+    def _create_basic_review(self, papers: List[Dict[str, Any]]) -> LiteratureFeedback:
+        """Create a basic review when analysis fails, using only real papers"""
+        # Format the papers from real results
+        formatted_papers = []
+        for paper in papers:
+            formatted_papers.append({
+                'title': paper.get('title', ''),
+                'authors': paper.get('authors', ''),
+                'year': paper.get('year', ''),
+                'journal': paper.get('journal', ''),
+                'summary': paper.get('summary', ''),
+                'relevance': paper.get('relevance', 'Relevance unknown due to analysis failure.'),
+                'url': paper.get('url', ''),
+                'source': paper.get('source', '')
+            })
+        
+        # Create a basic review message
+        if papers:
+            assessment = "We found some papers that might be related to your research proposal, but we couldn't complete a detailed analysis. Please review these papers to assess how your idea relates to existing work."
+            score = 5.0  # Neutral score
+        else:
+            assessment = "We couldn't find any papers directly related to your research proposal in our search. This could mean your idea is novel, but please consider conducting a more comprehensive literature search to confirm."
+            score = 7.0  # Slightly higher score due to potential novelty
+        
+        return LiteratureFeedback(
+            similar_papers=formatted_papers,
+            novelty_assessment=assessment,
+            differentiation_suggestions=[
+                "Review the related papers more closely to identify gaps",
+                "Consider consulting field experts for more tailored literature recommendations",
+                "Search additional databases beyond ArXiv for a more comprehensive review"
+            ],
+            emerging_trends="Due to analysis limitations, we couldn't identify specific emerging trends. Consider reviewing recent conference proceedings and review papers in your field.",
+            novelty_score=score,
+            recommended_improvements=[
+                "Conduct a more comprehensive literature review",
+                "Clearly articulate how your work differs from existing research",
+                "Consider consulting with subject matter experts in your specific subfield"
+            ],
+            summary="Due to technical limitations, we could only provide a basic assessment. Please review the papers we found and consider conducting a more thorough literature review to better assess novelty and potential contributions."
+        )
+    
     def format_feedback_for_idea_agent(self, feedback: LiteratureFeedback) -> Dict[str, Any]:
         """Format literature feedback for the idea agent"""
         # This is now returning a dictionary for better integration with the idea agent
@@ -382,10 +529,15 @@ class LiteratureAgent:
         result += f"{feedback.novelty_assessment}\n\n"
         
         result += "## SIMILAR RECENT PAPERS\n"
-        for i, paper in enumerate(feedback.similar_papers, 1):
-            result += f"{i}. **{paper['title']}** by {paper['authors']} ({paper['year']}) - {paper['journal']}\n"
-            result += f"   Summary: {paper['summary']}\n"
-            result += f"   Relevance: {paper['relevance']}\n\n"
+        if feedback.similar_papers:
+            for i, paper in enumerate(feedback.similar_papers, 1):
+                result += f"{i}. **{paper['title']}** by {paper['authors']} ({paper['year']}) - {paper['journal']}\n"
+                if paper.get('url'):
+                    result += f"   URL: {paper['url']}\n"
+                result += f"   Summary: {paper['summary']}\n"
+                result += f"   Relevance: {paper['relevance']}\n\n"
+        else:
+            result += "No similar papers were found in our search of recent literature.\n\n"
         
         result += "## INNOVATION OPPORTUNITIES\n"
         for i, suggestion in enumerate(feedback.differentiation_suggestions, 1):
