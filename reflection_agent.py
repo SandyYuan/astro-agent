@@ -175,6 +175,8 @@ class AstronomyReflectionAgent:
         
         RESPONSE FORMAT:
         
+        YOU MUST FOLLOW THIS EXACT FORMAT WITH THESE EXACT SECTION HEADINGS. DO NOT DEVIATE FROM THIS FORMAT.
+        
         SCIENTIFIC VALIDITY:
         Strengths:
         - [List specific scientific strengths]
