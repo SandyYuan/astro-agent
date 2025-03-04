@@ -16,22 +16,24 @@ from subfields import ASTRONOMY_SUBFIELDS
 from reflection_agent import AstronomyReflectionAgent, ProposalFeedback
 from literature_agent import LiteratureAgent  # Import the new LiteratureAgent
 
-# Import Google GenAI
+# Import Google GenAI for backward compatibility
 try:
     from google import genai
 except ImportError:
-    st.error("Could not import Google GenerativeAI. Please install it with: pip install google-generativeai")
-    st.stop()
+    genai = None
 
 # Create the standalone functions if needed
 def generate_research_idea(api_key, **kwargs):
-    agent = IdeaAgent(api_key)
+    provider = kwargs.pop('provider', 'azure')  # Get provider with default to Azure
+    agent = IdeaAgent(api_key, provider=provider)
     return agent.generate_initial_idea(**kwargs)
 
 def initialize_session_state():
     """Initialize all session state variables if they don't exist"""
     if 'api_key' not in st.session_state:
         st.session_state.api_key = ""
+    if 'provider' not in st.session_state:
+        st.session_state.provider = "azure"  # Default to Azure
     if 'idea_agent' not in st.session_state:
         st.session_state.idea_agent = None
     if 'reflection_agent' not in st.session_state:
@@ -331,11 +333,29 @@ def main():
     
     # Sidebar for inputs and actions
     with st.sidebar:
+        st.header("Model Provider")
+        provider = st.selectbox(
+            "Select AI Model Provider",
+            options=["openai-gpt-o1", "google-gemini-2.0-thinking"],
+            index=0 if st.session_state.provider == "azure" else 1,
+            key="provider_selection"
+        )
+        
+        # Update the provider in session state - convert display name to internal name
+        if provider == "openai-gpt-o1":
+            st.session_state.provider = "azure"
+        elif provider == "google-gemini-2.0-thinking":
+            st.session_state.provider = "google"
+        
+        # Show appropriate API key input based on provider
         st.header("API Key")
+        api_key_label = "Enter your Azure OpenAI API Key" if provider == "openai-gpt-o1" else "Enter your Google AI Studio API Key"
+        api_key_help = "Get your API key from Azure OpenAI Service" if provider == "openai-gpt-o1" else "Get your API key from https://makersuite.google.com/app/apikey"
+        
         api_key = st.text_input(
-            "Enter your Google AI Studio API Key",
+            api_key_label,
             type="password",
-            help="Get your API key from https://makersuite.google.com/app/apikey",
+            help=api_key_help,
             key="api_key_input",
             value=st.session_state.api_key
         )
@@ -344,22 +364,28 @@ def main():
         if api_key:
             st.session_state.api_key = api_key
             
+            # Reset agents if provider changes
+            if st.button("Apply Provider/API Key"):
+                st.session_state.idea_agent = None
+                st.session_state.reflection_agent = None
+                st.session_state.literature_agent = None
+                st.rerun()
+            
             if not st.session_state.idea_agent:
                 try:
-                    st.session_state.idea_agent = IdeaAgent(api_key)
+                    st.session_state.idea_agent = IdeaAgent(api_key, provider=st.session_state.provider)
                 except Exception as e:
                     st.error(f"Error initializing idea agent: {str(e)}")
 
             if not st.session_state.reflection_agent:
                 try:
-                    st.session_state.reflection_agent = AstronomyReflectionAgent(api_key)
+                    st.session_state.reflection_agent = AstronomyReflectionAgent(api_key, provider=st.session_state.provider)
                 except Exception as e:
                     st.error(f"Error initializing reflection agent: {str(e)}")
             
-            # Initialize literature agent (new)
             if not st.session_state.literature_agent:
                 try:
-                    st.session_state.literature_agent = LiteratureAgent(api_key)
+                    st.session_state.literature_agent = LiteratureAgent(api_key, provider=st.session_state.provider)
                 except Exception as e:
                     st.error(f"Error initializing literature agent: {str(e)}")
                     

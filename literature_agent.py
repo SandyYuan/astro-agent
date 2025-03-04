@@ -1,16 +1,25 @@
-import json
-import time
-import datetime
+import os
 import re
-from typing import List, Dict, Any, Optional
+import json
+import arxiv
+import asyncio
+import nest_asyncio
+import datetime
+from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from dateutil.relativedelta import relativedelta
 
-# For Google GenAI
-from google import genai
+# Import the LLMClient wrapper
+from llm_client import LLMClient
 
-# Import arxiv package for API access
-import arxiv
+# Try to import Google's genai library for backward compatibility
+try:
+    from google import genai
+except ImportError:
+    genai = None
+
+# Apply nest_asyncio to allow nested event loops (needed for async arxiv search)
+nest_asyncio.apply()
 
 @dataclass
 class LiteratureFeedback:
@@ -26,10 +35,14 @@ class LiteratureFeedback:
 class LiteratureAgent:
     """Agent that analyzes recent astronomy literature to evaluate idea novelty"""
     
-    def __init__(self, api_key):
-        """Initialize with an API key"""
+    def __init__(self, api_key, provider="azure", model=None):
+        """Initialize with an API key and provider"""
         self.api_key = api_key
-        self.llm_client = genai.Client(api_key=self.api_key)
+        self.provider = provider
+        self.model = model
+        
+        # Initialize the LLM client with the appropriate provider
+        self.llm_client = LLMClient(api_key, provider)
         
         # ArXiv categories relevant to astronomy
         self.astronomy_categories = [
@@ -93,11 +106,7 @@ class LiteratureAgent:
         """
         
         try:
-            response = self.llm_client.models.generate_content(
-                model="gemini-2.0-flash-thinking-exp", 
-                contents=prompt
-            )
-            search_terms = response.text.strip()
+            search_terms = self.llm_client.generate_content(prompt).strip()
             
             # Clean up the response to extract just the terms
             if ' ' in search_terms:
@@ -317,17 +326,14 @@ class LiteratureAgent:
         
         try:
             # Get response from LLM
-            response = self.llm_client.models.generate_content(
-                model="gemini-2.0-flash-thinking-exp", 
-                contents=prompt
-            )
+            review_text = self.llm_client.generate_content(prompt)
             
             # Add relevance to the papers based on the review
-            self._add_relevance_to_papers(papers, response.text)
+            self._add_relevance_to_papers(papers, review_text)
             
             # Parse the text response
             literature_review = self._parse_literature_review(
-                response.text, 
+                review_text, 
                 papers
             )
             

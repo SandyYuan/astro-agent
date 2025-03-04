@@ -2,7 +2,15 @@ import os
 import json
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
-from google import genai
+
+# Import the LLMClient wrapper
+from llm_client import LLMClient
+
+# Try to import Google's genai library for backward compatibility
+try:
+    from google import genai
+except ImportError:
+    genai = None
 
 # Import functions from idea_agent.py
 from idea_agent import (
@@ -35,10 +43,14 @@ class ProposalFeedback:
 class AstronomyReflectionAgent:
     """Expert astronomer agent that evaluates research proposals."""
 
-    def __init__(self, api_key):
-        """Initialize with an API key."""
+    def __init__(self, api_key, provider="azure", model=None):
+        """Initialize with an API key and provider."""
         self.api_key = api_key
-        self.llm_client = genai.Client(api_key=api_key)
+        self.provider = provider
+        self.model = model
+        
+        # Initialize the LLM client with the appropriate provider
+        self.llm_client = LLMClient(api_key, provider)
     
     def evaluate_proposal(self, proposal: Dict[str, Any], literature_feedback: Optional[Dict[str, Any]] = None) -> ProposalFeedback:
         """Evaluate a proposal and return structured feedback."""
@@ -202,14 +214,7 @@ class AstronomyReflectionAgent:
     def _get_llm_evaluation(self, prompt: str) -> str:
         """Get evaluation from the LLM."""
         try:
-            # Create a fresh client with only required parameters
-            # client = genai.Client(api_key=self.api_key)
-            response = self.llm_client.models.generate_content(
-                model="gemini-2.0-flash-thinking-exp", 
-                contents=prompt
-                # No additional parameters
-            )
-            return response.text
+            return self.llm_client.generate_content(prompt)
         except Exception as e:
             print(f"Error in LLM evaluation: {str(e)}")
             raise
@@ -358,10 +363,8 @@ def generate_improved_idea(original_proposal: Dict[str, Any], feedback: Proposal
     improvement_prompt = reflection_agent.generate_improvement_prompt(original_proposal, feedback)
     
     # Get improved idea from LLM
-    response = client.models.generate_content(
-        model="gemini-2.0-flash-thinking-exp", contents=improvement_prompt
-    )
-    improved_idea_text = response.text
+    response_text = client.generate_content(improvement_prompt)
+    improved_idea_text = response_text
     
     # Parse the response into structured sections
     sections = [

@@ -13,14 +13,24 @@ from google import genai
 
 import streamlit as st
 
+# Import the LLMClient wrapper
+from llm_client import LLMClient
+
+# Try to import Google's genai library for backward compatibility
+try:
+    from google import genai
+except ImportError:
+    genai = None
+
 class IdeaAgent:
     """Stateful agent that generates and improves astronomy research ideas."""
-    def __init__(self, api_key):
+    def __init__(self, api_key, provider="azure"):
         self.api_key = api_key
-        if genai:
-            self.llm_client = genai.Client(api_key=api_key)
-        else:
-            self.llm_client = None
+        self.provider = provider
+        
+        # Initialize the LLM client with the appropriate provider
+        self.llm_client = LLMClient(api_key, provider)
+                
         self.original_prompt = None
         self.current_idea = None
         self.student_profile = None
@@ -58,15 +68,6 @@ class IdeaAgent:
         
         return self.current_idea
     
-    def generate_content(self, prompt):
-        """Generate content using the existing client"""
-        # Use the already initialized client instead of creating a new one
-        response = self.llm_client.models.generate_content(
-            model="gemini-2.0-flash-thinking-exp", 
-            contents=prompt
-        )
-        return response.text
-
     def improve_idea(self, feedback: Dict[str, Any]) -> Dict[str, Any]:
         """Improve the current idea based on expert feedback and optional literature insights."""
         if not self.current_idea:
@@ -240,11 +241,7 @@ class IdeaAgent:
     """
             
         # Generate the improved idea
-        response = self.llm_client.models.generate_content(
-            model="gemini-2.0-flash-thinking-exp", contents=improvement_prompt
-        )
-        
-        improved_idea_text = response.text
+        improved_idea_text = self.llm_client.generate_content(improvement_prompt)
         
         # Parse the improved idea
         sections = [
@@ -320,26 +317,29 @@ def generate_research_idea(
     skill_level: str = "beginner",
     time_frame: str = "2-3 years",
     available_resources: Optional[List[str]] = None,
-    additional_context: str = ""
+    additional_context: str = "",
+    provider: str = "azure"  # Add provider parameter with default to Azure
 ) -> Dict[str, Any]:
     """
     Generate a tailored astronomy research idea for a graduate student.
     
     Args:
-        api_key: Google AI Studio API key
-        client: Optional existing genai.Client instance
+        api_key: API key for the selected provider
+        client: Optional existing client instance
         student_interests: List of astronomy topics the student is interested in
         skill_level: Student's current skill level (beginner, intermediate, advanced)
         time_frame: Expected duration of the research project
         available_resources: Equipment, datasets, or collaborations available
         additional_context: Additional information about the student's background and interests
+        provider: Model provider to use ('azure' or 'google')
         
     Returns:
         A dictionary containing the research idea and supporting information
     """
     # Use the provided client or create a new one if not provided
-    used_client = client or genai.Client(api_key=api_key)
-
+    if client is None:
+        client = LLMClient(api_key, provider)
+    
     # Default values if none provided
     if student_interests is None:
         student_interests = [random.choice(ASTRONOMY_SUBFIELDS).name]
@@ -488,13 +488,9 @@ ALL PROJECTS MUST:
 - Produce meaningful results even if preliminary
 """
 
-    # Call the LLM to generate the research idea using the existing or new client
+    # Call the LLM to generate the research idea using the client
     try:
-        response = used_client.models.generate_content(
-            model="gemini-2.0-flash-thinking-exp", contents=prompt
-        )
-        
-        idea_text = response.text
+        idea_text = client.generate_content(prompt)
     except Exception as e:
         print(f"Error generating research idea: {str(e)}")
         raise RuntimeError(f"Failed to generate research idea: {str(e)}")
@@ -575,16 +571,16 @@ def get_title_from_text(text: str) -> str:
     # Fallback
     return "Astronomy Research Proposal"
 
-def generate_multiple_ideas(count: int = 3, api_key: str = None, client: Optional[Any] = None, **kwargs) -> List[Dict[str, Any]]:
+def generate_multiple_ideas(count: int = 3, api_key: str = None, client: Optional[Any] = None, provider: str = "azure", **kwargs) -> List[Dict[str, Any]]:
     """Generate multiple research ideas with variations."""
     # Use the provided client or create a new one
     used_client = client
     if not used_client and api_key:
-        used_client = genai.Client(api_key=api_key)
+        used_client = LLMClient(api_key, provider)
     
     ideas = []
     for _ in range(count):
-        ideas.append(generate_research_idea(api_key=api_key, client=used_client, **kwargs))
+        ideas.append(generate_research_idea(api_key=api_key, client=used_client, provider=provider, **kwargs))
     return ideas
 
 if __name__ == "__main__":
