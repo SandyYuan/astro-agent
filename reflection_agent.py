@@ -150,22 +150,28 @@ class AstronomyReflectionAgent:
         Step by step, evaluate this proposal according to these criteria:
         
         1. SCIENTIFIC VALIDITY AND ACCURACY
+        - Is the problem statement clear and specific?
         - Are there direct, established connections between methods and claimed measurements?
         - Is the approach based on correct physical and astronomical principles?
         - Are there any incorrect assumptions or scientific inaccuracies?
         - Are the instruments/surveys/data sources capable of measuring what's claimed?
         
         2. METHODOLOGICAL SOUNDNESS
+        - Does the methodology directly address the stated problem?
         - Is there a clear logical chain from methods to results?
         - Are the proposed techniques appropriate for the research question?
         - Are there statistical or data quality issues not addressed?
         - Is the signal-to-noise ratio sufficient for the measurements?
+        - Is the methodology concise and well-structured (3-4 paragraphs with clear logical flow)?
+        - Does the methodology avoid excessive technical details that obscure the overall approach?
         
         3. NOVELTY AND KNOWLEDGE GAP
+        - Is the problem statement addressing a genuine gap in current understanding?
         - Does this address a genuine gap in current understanding?
         - How does it advance beyond existing literature?
         
         4. IMPACT AND SIGNIFICANCE
+        - How important is the problem being addressed?
         - How would results from this project advance astronomical understanding?
         - Is the research question important to the field?
         

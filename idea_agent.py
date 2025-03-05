@@ -223,7 +223,28 @@ class IdeaAgent:
     [Improved background]
 
     ## Methodology
-    [Improved methodology]
+    Begin with: "To address the problem of [restate the specific problem], we will use the following approach:"
+
+    Provide a CONCISE methodology in 3-4 paragraphs that follows a clear logical flow. Each paragraph should focus on a distinct phase of the research:
+
+    Paragraph 1: Data Acquisition and Processing
+    - Specify exact data sources (survey names, telescope facilities, or dataset identifiers)
+    - Describe initial data selection criteria and preprocessing steps
+
+    Paragraph 2: Analysis Approach
+    - Outline the core analytical methods in a logical sequence
+    - Specify software tools and programming languages to be used
+    - Explain how these methods directly connect to answering the research question
+
+    Paragraph 3: Validation and Interpretation
+    - Describe how results will be validated (e.g., statistical tests, comparison with models)
+    - Explain how potential biases or limitations will be addressed
+    - Briefly outline how results will be interpreted in the context of the research question
+
+    Optional Paragraph 4: Timeline
+    - Provide a brief timeline showing how these steps will be completed within the {self.student_profile['time_frame']}
+
+    IMPORTANT: Maintain a clear logical flow between steps. Each step should naturally lead to the next, forming a coherent research pipeline. Avoid excessive technical details that obscure the overall approach.
 
     ## Expected Outcomes
     [Improved expected outcomes]
@@ -402,6 +423,9 @@ Begin with a clear, explicit mission statement formatted as follows:
 
 Then provide 2-3 sentences explaining why this research is important, impactful, and how it addresses current challenges in the field. Be extremely specific about the objects, phenomena, or data to be studied.
 
+IMPORTANT: Explicitly state the specific problem or gap in knowledge this research aims to solve. Format this as:
+"This research addresses the problem of [specific problem statement], which is currently unresolved because [reasons for knowledge gap]."
+
 ## Background
 Provide 3-4 paragraphs explaining:
 1. The current state of knowledge in this specific area, citing recent developments (within the last 3-5 years)
@@ -409,13 +433,31 @@ Provide 3-4 paragraphs explaining:
 3. Why this gap is scientifically significant and timely
 4. Why this project is particularly suitable for a {skill_level} student
 
+The first paragraph must begin by clearly stating: "The key problem this research addresses is [concise problem statement]." Then elaborate on why this problem matters to the field.
+
 ## Methodology
-Outline a detailed, step-by-step approach including:
-1. Specific data sources (actual survey names, telescope facilities, or dataset identifiers)
-2. Exact software tools and programming languages to be used
-3. Statistical or analytical methods to be applied
-4. Validation techniques to ensure reliable results
-5. Timeline for completing various phases within the {time_frame} timeframe
+Begin with: "To address the problem of [restate the specific problem], we will use the following approach:"
+
+Provide a CONCISE methodology in 3-4 paragraphs that follows a clear logical flow. Each paragraph should focus on a distinct phase of the research:
+
+1: Data Acquisition and Processing
+- Specify exact data sources (survey names, telescope facilities, or dataset identifiers)
+- Describe initial data selection criteria and preprocessing steps
+
+2: Analysis Approach
+- Outline the core analytical methods in a logical sequence
+- Specify software tools and programming languages to be used
+- Explain how these methods directly connect to answering the research question
+
+3: Validation and Interpretation
+- Describe how results will be validated (e.g., statistical tests, comparison with models)
+- Explain how potential biases or limitations will be addressed
+- Briefly outline how results will be interpreted in the context of the research question
+
+Optional Paragraph 4: Timeline
+- Provide a brief timeline showing how these steps will be completed within the {time_frame}
+
+IMPORTANT: Maintain a clear logical flow between steps. Each step should naturally lead to the next, forming a coherent research pipeline. Avoid excessive technical details that obscure the overall approach.
 
 ## Expected Outcomes
 Describe at least three concrete, measurable results this research could produce, such as:
@@ -424,9 +466,7 @@ Describe at least three concrete, measurable results this research could produce
 3. Statistical relationships or correlations
 4. Potential for publication or contribution to larger surveys
 
-## Potential Challenges
-Identify at least three specific technical or conceptual obstacles and suggest detailed mitigation approaches for each.
-
+For each outcome, explicitly state how it contributes to solving the identified problem.
 ## Required Skills
 List at least five precise technical and knowledge-based skills needed, suggesting how these could be developed during the project. Include both initial skills needed and those that will be developed.
 
