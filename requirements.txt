@@ -6,3 +6,9 @@ xmltodict>=0.14.2
 arxiv==2.1.3
 dataclasses
 typing
+langchain-openai
+openai
+pyyaml
+python-dotenv
+anthropic
+requests

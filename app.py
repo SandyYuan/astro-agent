@@ -3,6 +3,9 @@ import json
 import asyncio
 import nest_asyncio
 import os
+import time
+from typing import Dict, Any, List, Optional
+
 
 # Apply nest_asyncio to allow nested event loops
 nest_asyncio.apply()
@@ -11,9 +14,9 @@ nest_asyncio.apply()
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-from idea_agent import IdeaAgent
-from subfields import ASTRONOMY_SUBFIELDS
-from reflection_agent import AstronomyReflectionAgent, ProposalFeedback
+from idea_agent import IdeaAgent, generate_research_idea, generate_multiple_ideas
+from subfields import ASTRONOMY_SUBFIELDS, AstronomySubfield
+from reflection_agent import AstronomyReflectionAgent, ProposalFeedback, generate_improved_idea
 from literature_agent import LiteratureAgent  # Import the new LiteratureAgent
 
 # Import Google GenAI for backward compatibility
@@ -21,6 +24,9 @@ try:
     from google import genai
 except ImportError:
     genai = None
+
+# Import the LLMClient wrapper
+from llm_client import LLMClient
 
 # Create the standalone functions if needed
 def generate_research_idea(api_key, **kwargs):
@@ -318,7 +324,8 @@ def main():
     st.set_page_config(
         page_title="Astronomy Research Idea Generator",
         page_icon="🔭",
-        layout="wide"
+        layout="wide",
+        initial_sidebar_state="expanded"
     )
     
     st.title("🔭 Astronomy Research Idea Generator")
@@ -495,10 +502,6 @@ def main():
                 on_click=reset_state, 
                 key="btn_reset"
             )
-        else:
-            st.warning("Please enter your Google AI Studio API key to use this app.")
-            # Stop further execution until API key is provided
-            st.stop()
 
     # Main content area
     if st.session_state.app_stage == 'start':
@@ -641,90 +644,78 @@ def display_research_idea(idea):
         )
 
 def display_literature_review(literature_feedback):
-    """Display literature review in a structured way with real papers only"""
+    """Display literature review in a structured way"""
     if not literature_feedback:
-        st.error("No literature feedback available")
+        st.error("No literature review available")
         return
     
-    # Novelty score
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        novelty_score = getattr(literature_feedback, 'novelty_score', 5.0)
-        st.metric("Novelty Score", f"{novelty_score}/10")
-    
-    with col2:
+    # Display novelty score
+    if hasattr(literature_feedback, 'novelty_score'):
+        score = literature_feedback.novelty_score
         st.subheader("Novelty Assessment")
-        st.write(getattr(literature_feedback, 'novelty_assessment', "No assessment available"))
-    
-    # Similar papers with improved display
-    st.subheader("Similar Recent Publications from arXiv")
-    similar_papers = getattr(literature_feedback, 'similar_papers', [])
-    
-    if similar_papers:
-        # Display papers in a more attractive way
-        with st.container():
-            for i, paper in enumerate(similar_papers, 1):
-                title = paper.get('title', 'Unnamed Paper')
-                # Create a nice title with appropriate icons
-                formatted_title = f"{i}. 📄 {title}"
-                
-                with st.expander(formatted_title):
-                    # Create a more structured layout
-                    col1, col2 = st.columns([1, 1])
-                    
-                    with col1:
-                        st.markdown(f"**Authors:** {paper.get('authors', 'Unknown')}")
-                        st.markdown(f"**Year:** {paper.get('year', 'Unknown')}")
-                        st.markdown(f"**Journal/Source:** {paper.get('journal', 'Unknown')}")
-                        
-                        # Add URL if available - make it more prominent
-                        if paper.get('url'):
-                            st.markdown(f"**URL:** [{paper.get('source', 'Link')}]({paper.get('url')})")
-                            if paper.get('arxiv_id'):
-                                st.markdown(f"**ArXiv ID:** {paper.get('arxiv_id')}")
-                    
-                    with col2:
-                        if paper.get('summary'):
-                            st.markdown("**Abstract:**")
-                            st.markdown(f"_{paper.get('summary')}_")
-                        
-                        if paper.get('relevance'):
-                            st.markdown("**Relevance to Proposal:**")
-                            st.markdown(f"_{paper.get('relevance')}_")
-    else:
-        st.info("No similar papers were found in our arXiv search. This could indicate a novel research area, or that the search terms need refinement. Consider conducting a more comprehensive literature search using other databases.")
         
-    # Display in two columns for differentiation and recommendations
-    col1, col2 = st.columns(2)
+        # Create a color gradient from red (1) to green (10)
+        color = f"rgb({max(0, 255 - (score * 25))}, {min(255, score * 25)}, 0)"
+        
+        st.markdown(
+            f"""
+            <div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: {color}; text-align: center;">Novelty Score: {score}/10</h3>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
     
-    with col1:
+    # Display similar papers
+    if hasattr(literature_feedback, 'similar_papers') and literature_feedback.similar_papers:
+        st.subheader("Similar Recent Papers")
+        
+        for i, paper in enumerate(literature_feedback.similar_papers, 1):
+            with st.expander(f"{i}. {paper.get('title', 'Untitled Paper')}"):
+                if 'authors' in paper and paper['authors']:
+                    st.write(f"**Authors:** {paper['authors']}")
+                if 'year' in paper and paper['year']:
+                    st.write(f"**Year:** {paper['year']}")
+                if 'journal' in paper and paper['journal']:
+                    st.write(f"**Journal:** {paper['journal']}")
+                if 'relevance' in paper and paper['relevance']:
+                    st.write(f"**Relevance:** {paper['relevance']}")
+                if 'url' in paper and paper['url']:
+                    st.write(f"**Link:** [{paper['url']}]({paper['url']})")
+                if 'summary' in paper and paper['summary']:
+                    st.write("**Abstract:**")
+                    st.write(paper['summary'])
+    else:
+        st.info("No directly relevant papers were found in the search. This could indicate a novel research direction or that the search terms need refinement.")
+    
+    # Display novelty assessment
+    if hasattr(literature_feedback, 'novelty_assessment') and literature_feedback.novelty_assessment:
+        st.subheader("Novelty Analysis")
+        st.write(literature_feedback.novelty_assessment)
+    
+    # Display differentiation suggestions
+    if hasattr(literature_feedback, 'differentiation_suggestions') and literature_feedback.differentiation_suggestions:
         st.subheader("Differentiation Suggestions")
-        diff_suggestions = getattr(literature_feedback, 'differentiation_suggestions', [])
-        if diff_suggestions:
-            for i, suggestion in enumerate(diff_suggestions, 1):
-                st.write(f"{i}. {suggestion}")
-        else:
-            st.write("No differentiation suggestions available.")
+        for i, suggestion in enumerate(literature_feedback.differentiation_suggestions, 1):
+            st.write(f"{i}. {suggestion}")
     
-    with col2:
-        st.subheader("Key Recommendations")
-        recommendations = getattr(literature_feedback, 'recommended_improvements', [])
-        if recommendations:
-            for i, rec in enumerate(recommendations, 1):
-                st.write(f"{i}. {rec}")
-        else:
-            st.write("No recommendations available.")
+    # Display emerging trends
+    if hasattr(literature_feedback, 'emerging_trends') and literature_feedback.emerging_trends:
+        st.subheader("Emerging Trends")
+        st.write(literature_feedback.emerging_trends)
     
-    # Emerging trends
-    st.subheader("Emerging Research Trends")
-    st.write(getattr(literature_feedback, 'emerging_trends', "No emerging trends identified."))
+    # Display recommended improvements
+    if hasattr(literature_feedback, 'recommended_improvements') and literature_feedback.recommended_improvements:
+        st.subheader("Recommended Improvements")
+        for i, improvement in enumerate(literature_feedback.recommended_improvements, 1):
+            st.write(f"{i}. {improvement}")
     
-    # Summary
-    st.subheader("Summary Assessment")
-    st.write(getattr(literature_feedback, 'summary', "No summary available."))
+    # Display summary
+    if hasattr(literature_feedback, 'summary') and literature_feedback.summary:
+        st.subheader("Summary")
+        st.write(literature_feedback.summary)
     
-    # Add disclaimer about search limitations
-    st.caption("This literature review is based solely on real papers from arXiv published in the last 2 years. For a more comprehensive review, consider searching additional databases such as ADS, Web of Science, or Scopus.")
+    st.caption("This literature review is based solely on real papers from academic sources. For a more comprehensive review, consider searching additional databases such as ADS, Web of Science, or Scopus.")
 
 def display_feedback(feedback):
     """Display expert feedback in a structured way"""
