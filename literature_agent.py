@@ -276,7 +276,6 @@ class LiteratureAgent:
                 Year: {paper.get('year', '')}
                 Abstract: {paper.get('summary', '')}
                 """
-            print(papers_text)
         else:
             # If no papers were found, indicate this
             papers_text = "No relevant papers were found in the search. This could indicate a novel research area or that the search terms need refinement."

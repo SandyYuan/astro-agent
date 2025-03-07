@@ -378,6 +378,71 @@ def generate_research_idea(
     if not relevant_subfields:
         relevant_subfields = random.sample(ASTRONOMY_SUBFIELDS, 2)
     
+    # Check if the user has specified research directions in additional_context
+    user_specified_topics = []
+    if additional_context:
+        # Look for sentences that might indicate research interests
+        context_sentences = additional_context.split('.')
+        for sentence in context_sentences:
+            sentence = sentence.strip()
+            # Look for sentences that might indicate specific research interests
+            interest_indicators = [
+                "interested in", "want to study", "focus on", "research on",
+                "investigate", "explore", "work on", "curious about", "question is", 
+                "wondering about", "like to understand", "project on"
+            ]
+            
+            if any(indicator in sentence.lower() for indicator in interest_indicators) and len(sentence) > 20:
+                user_specified_topics.append(sentence)
+    
+    # Initialize selected_topics
+    selected_topics = []
+    
+    # If user specified topics, use ONLY those
+    if user_specified_topics:
+        # Use all user-specified topics (up to 4)
+        selected_topics = user_specified_topics[:4]
+    else:
+        # Only if no user topics are found, add random topics from subfields
+        random_topics = []
+        for subfield in relevant_subfields:
+            subfield_topics = []
+            
+            # Add complete challenges as potential topics (these are already well-formed research directions)
+            if subfield.current_challenges:
+                # Select up to 2 random challenges if available
+                challenge_count = min(2, len(subfield.current_challenges))
+                selected_challenges = random.sample(subfield.current_challenges, challenge_count)
+                subfield_topics.extend(selected_challenges)
+            
+            # Extract key concepts from the description as additional topics
+            key_concepts = []
+            description_sentences = subfield.description.split('.')
+            for sentence in description_sentences:
+                # Look for sentences with specific astronomical objects or phenomena
+                words = sentence.split()
+                if len(words) > 3 and any(word[0].isupper() for word in words if len(word) > 1):
+                    # Clean up the sentence
+                    clean_sentence = sentence.strip()
+                    if clean_sentence:
+                        key_concepts.append(clean_sentence)
+            
+            # Add up to 1 key concept if available
+            if key_concepts:
+                concept_count = min(1, len(key_concepts))
+                selected_concepts = random.sample(key_concepts, concept_count)
+                subfield_topics.extend(selected_concepts)
+            
+            # Add the selected topics for this subfield
+            random_topics.extend(subfield_topics)
+        
+        # Shuffle and limit random topics
+        random.shuffle(random_topics)
+        selected_topics = random_topics[:4]
+    
+    # Remove duplicates while preserving order
+    selected_topics = list(dict.fromkeys(selected_topics))
+    
     # Create challenges list separately
     challenges_list = []
     for subfield in relevant_subfields:
@@ -397,9 +462,25 @@ Use the above information about the student's background, previous projects, and
 """
     
     # Construct improved prompt for the LLM
+    if user_specified_topics:
+        diversity_section = """USER RESEARCH FOCUS: The student has explicitly expressed interest in the following research direction(s). Your idea MUST focus specifically on addressing these interests:"""
+    else:
+        diversity_section = """DIVERSITY REQUIREMENT: Explore the full breadth of potential research topics within the selected subfields. Avoid common or popular research areas unless they represent a truly novel approach. Consider:
+- Intersections between different subfields that are rarely explored
+- Understudied objects, phenomena, or regions within the subfields
+- Novel applications of methods from other fields
+- Contrarian approaches that challenge conventional wisdom
+- Connections between the selected subfields that create unique research opportunities
+
+SPECIFIC RESEARCH DIRECTIONS TO CONSIDER: Your research idea should address one or more of these challenges or concepts in a novel way:"""
+
     prompt = f"""Generate a novel and scientifically accurate astronomy research idea for a {skill_level} graduate student.
 
 IMPORTANT: Create a SPECIFIC, DESCRIPTIVE title that clearly describes the exact research project. The title should precisely capture what the student will be investigating.
+
+{diversity_section}
+
+{chr(10).join(f"- {topic}" for topic in selected_topics)}
 
 Parameters:
 - Student interests: {', '.join(student_interests)}
