@@ -35,49 +35,104 @@ def generate_research_idea(api_key, **kwargs):
     return agent.generate_initial_idea(**kwargs)
 
 def initialize_session_state():
-    """Initialize all session state variables if they don't exist"""
-    if 'api_key' not in st.session_state:
-        st.session_state.api_key = ""
-    if 'provider' not in st.session_state:
-        st.session_state.provider = "azure"  # Default to Azure
-    if 'idea_agent' not in st.session_state:
-        st.session_state.idea_agent = None
-    if 'reflection_agent' not in st.session_state:
-        st.session_state.reflection_agent = None
-    if 'literature_agent' not in st.session_state:  # Add literature agent
-        st.session_state.literature_agent = None
-    if 'current_idea' not in st.session_state:
-        st.session_state.current_idea = None
-    if 'literature_feedback' not in st.session_state:  # Add literature feedback
-        st.session_state.literature_feedback = None
-    if 'feedback' not in st.session_state:
-        st.session_state.feedback = None
-    if 'improved_idea' not in st.session_state:
-        st.session_state.improved_idea = None
-    if 'show_process' not in st.session_state:
-        st.session_state.show_process = False
+    """Initialize session state variables if they don't exist"""
     if 'app_stage' not in st.session_state:
-        # Possible values: 'start', 'idea_generated', 'literature_reviewed', 'feedback_received', 'completed'
         st.session_state.app_stage = 'start'
+    
     if 'interests' not in st.session_state:
         st.session_state.interests = []
+    
     if 'resources' not in st.session_state:
-        st.session_state.resources = ["Public astronomical datasets"]
+        st.session_state.resources = []
+    
+    if 'skill_level' not in st.session_state:
+        st.session_state.skill_level = 'beginner'
+    
+    if 'time_frame' not in st.session_state:
+        st.session_state.time_frame = '1 year'
+    
     if 'additional_context' not in st.session_state:
-        st.session_state.additional_context = ""
+        st.session_state.additional_context = ''
+    
+    if 'current_idea' not in st.session_state:
+        st.session_state.current_idea = None
+    
+    if 'improved_idea' not in st.session_state:
+        st.session_state.improved_idea = None
+    
+    if 'feedback' not in st.session_state:
+        st.session_state.feedback = None
+    
+    if 'literature_feedback' not in st.session_state:
+        st.session_state.literature_feedback = None
+    
+    if 'show_process' not in st.session_state:
+        st.session_state.show_process = False
+    
     if 'trigger_generate' not in st.session_state:
         st.session_state.trigger_generate = False
-    if 'skip_literature_review' not in st.session_state:  # Add option to skip literature review
+    
+    if 'idea_agent' not in st.session_state:
+        st.session_state.idea_agent = None
+    
+    if 'reflection_agent' not in st.session_state:
+        st.session_state.reflection_agent = None
+    
+    if 'literature_agent' not in st.session_state:
+        st.session_state.literature_agent = None
+    
+    if 'provider' not in st.session_state:
+        st.session_state.provider = 'azure'
+    
+    if 'api_key' not in st.session_state:
+        st.session_state.api_key = ''
+    
+    if 'skip_literature_review' not in st.session_state:
         st.session_state.skip_literature_review = False
+        
+    # New state variables for user feedback
+    if 'user_feedback' not in st.session_state:
+        st.session_state.user_feedback = ''
+        
+    if 'has_user_feedback' not in st.session_state:
+        st.session_state.has_user_feedback = False
+        
+    if 'trigger_user_improvement' not in st.session_state:
+        st.session_state.trigger_user_improvement = False
+        
+    if 'user_improved_idea' not in st.session_state:
+        st.session_state.user_improved_idea = None
 
 def reset_state():
-    """Reset the application state for a new idea generation"""
-    st.session_state.current_idea = None
-    st.session_state.literature_feedback = None  # Reset literature feedback
-    st.session_state.feedback = None
-    st.session_state.improved_idea = None
-    st.session_state.show_process = False
+    """Reset all session state variables to their initial values"""
+    # Keep API key and provider
+    api_key = st.session_state.api_key
+    provider = st.session_state.provider
+    
+    # Reset everything else
     st.session_state.app_stage = 'start'
+    st.session_state.interests = []
+    st.session_state.resources = []
+    st.session_state.skill_level = 'beginner'
+    st.session_state.time_frame = '1 year'
+    st.session_state.additional_context = ''
+    st.session_state.current_idea = None
+    st.session_state.improved_idea = None
+    st.session_state.feedback = None
+    st.session_state.literature_feedback = None
+    st.session_state.show_process = False
+    st.session_state.trigger_generate = False
+    st.session_state.skip_literature_review = False
+    
+    # Reset user feedback variables
+    st.session_state.user_feedback = ''
+    st.session_state.has_user_feedback = False
+    st.session_state.trigger_user_improvement = False
+    st.session_state.user_improved_idea = None
+    
+    # Restore API key and provider
+    st.session_state.api_key = api_key
+    st.session_state.provider = provider
 
 def update_interests():
     """Update selected interests from checkboxes"""
@@ -320,6 +375,119 @@ def run_full_pipeline():
                 
         return False
     
+def submit_user_feedback():
+    """Handle user feedback submission and trigger idea improvement"""
+    # Store the user feedback in session state
+    if st.session_state.user_feedback and st.session_state.user_feedback.strip():
+        # Set a flag to indicate user feedback is available
+        st.session_state.has_user_feedback = True
+        # Set a flag to trigger the improvement process
+        st.session_state.trigger_user_improvement = True
+
+def process_user_feedback():
+    """Process user feedback and generate an improved idea with expert feedback loop"""
+    if not st.session_state.has_user_feedback or not st.session_state.user_feedback:
+        return
+    
+    # Reset the trigger
+    st.session_state.trigger_user_improvement = False
+    
+    try:
+        # Step 1: Initial improvement based on user feedback
+        with st.spinner("Processing your feedback..."):
+            import threading
+            import concurrent.futures
+            
+            def improve_with_user_feedback_timeout(timeout_seconds=45):
+                try:
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            st.session_state.idea_agent.improve_idea_with_user_feedback,
+                            st.session_state.user_feedback
+                        )
+                        # Wait for completion or timeout
+                        return future.result(timeout=timeout_seconds)
+                except concurrent.futures.TimeoutError:
+                    raise TimeoutError("Idea improvement took too long.")
+            
+            # Call with timeout
+            initial_user_improved_idea = improve_with_user_feedback_timeout(45)  # 45 second timeout
+            
+            if not initial_user_improved_idea:
+                st.error("Failed to improve idea based on your feedback.")
+                return
+            
+            # Store the initial user-improved idea
+            st.session_state.current_idea = initial_user_improved_idea
+        
+        # Step 2: Get expert feedback on the user-improved idea
+        with st.spinner("Getting expert feedback on your improved idea..."):
+            # Use the existing feedback_with_timeout function
+            def feedback_with_timeout(timeout_seconds=45):
+                try:
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            st.session_state.reflection_agent.evaluate_proposal,
+                            st.session_state.current_idea,
+                            st.session_state.literature_feedback  # Pass literature feedback if available
+                        )
+                        # Wait for completion or timeout
+                        return future.result(timeout=timeout_seconds)
+                except concurrent.futures.TimeoutError:
+                    raise TimeoutError("Feedback generation took too long.")
+            
+            # Call with timeout
+            feedback = feedback_with_timeout(45)  # 45 second timeout
+            
+            if not feedback:
+                st.error("Failed to get expert feedback on your improved idea.")
+                return
+                
+            # Store the feedback
+            st.session_state.feedback = feedback
+        
+        # Step 3: Final improvement based on expert feedback
+        with st.spinner("Refining your idea based on expert feedback..."):
+            # Use the existing improve_with_timeout function
+            def improve_with_timeout(timeout_seconds=45):
+                try:
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        # Convert feedback to dictionary for idea agent
+                        feedback_dict = st.session_state.reflection_agent.format_feedback_for_idea_agent(st.session_state.feedback)
+                        future = executor.submit(
+                            st.session_state.idea_agent.improve_idea,
+                            feedback_dict
+                        )
+                        # Wait for completion or timeout
+                        return future.result(timeout=timeout_seconds)
+                except concurrent.futures.TimeoutError:
+                    raise TimeoutError("Final improvement took too long.")
+            
+            # Call with timeout
+            final_improved_idea = improve_with_timeout(45)  # 45 second timeout
+            
+            if not final_improved_idea:
+                st.error("Failed to generate final improved idea.")
+                return
+            
+            # Store the final improved idea
+            st.session_state.user_improved_idea = final_improved_idea
+            st.session_state.improved_idea = final_improved_idea
+            
+            # Update app stage
+            st.session_state.app_stage = 'completed'
+            
+            # Show success message
+            st.success("Research idea successfully refined based on your feedback and expert evaluation!")
+            
+    except TimeoutError as e:
+        st.error(f"Process timed out: {str(e)}")
+    except Exception as e:
+        st.error(f"Error improving idea: {str(e)}")
+        # Show detailed error in expandable section
+        with st.expander("Error details"):
+            st.write(str(e))
+
 def main():
     st.set_page_config(
         page_title="Astronomy Research Idea Generator",
@@ -328,7 +496,22 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    st.title("🔭 Astronomy Research Idea Generator")
+    # Add minimal CSS to ensure proper spacing
+    st.markdown("""
+    <style>
+    .reportview-container .main .block-container {
+        padding-top: 2rem;
+        padding-right: 2rem;
+        padding-left: 2rem;
+        padding-bottom: 2rem;
+        max-width: 900px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Create a title in a container with proper spacing
+    with st.container():
+        st.title("🔭 Astronomy Research Idea Generator")
     
     # Initialize session state
     initialize_session_state()
@@ -337,6 +520,10 @@ def main():
     if st.session_state.trigger_generate:
         run_full_pipeline()
         st.session_state.trigger_generate = False
+    
+    # Handle user feedback trigger - this improves the idea based on user feedback
+    if st.session_state.trigger_user_improvement:
+        process_user_feedback()
     
     # Sidebar for inputs and actions
     with st.sidebar:
@@ -512,7 +699,25 @@ def main():
         # Display only the improved idea by default
         if not st.session_state.show_process:
             st.subheader("⭐ Refined Research Idea", divider="rainbow")
-            display_research_idea(st.session_state.improved_idea)
+            # Check if this is a user-improved idea
+            is_user_improved = st.session_state.has_user_feedback and st.session_state.user_improved_idea is not None
+            display_research_idea(st.session_state.improved_idea, is_user_improved=is_user_improved)
+            
+            # Add user feedback section
+            st.subheader("✏️ Provide Additional Feedback", divider="gray")
+            st.text_area(
+                "If you have specific suggestions or requests to improve this idea further, please provide them below:",
+                value=st.session_state.user_feedback,
+                height=150,
+                key="user_feedback",
+                help="Your feedback will be used to refine the research idea further."
+            )
+            
+            # Add button to submit feedback
+            if st.button("Submit Feedback", key="btn_submit_feedback", type="primary"):
+                submit_user_feedback()
+                # Rerun to process the feedback immediately
+                st.rerun()
             
             # Add button to toggle detailed process view
             st.button(
@@ -532,13 +737,21 @@ def main():
                 st.subheader("📚 Literature Review", divider="rainbow")
                 display_literature_review(st.session_state.literature_feedback)
             
-            # Display the feedback
+            # Display user feedback if available
+            if st.session_state.has_user_feedback and st.session_state.user_feedback:
+                st.subheader("💬 Your Feedback", divider="rainbow")
+                st.markdown(f"**You provided the following feedback:**")
+                st.markdown(f"*{st.session_state.user_feedback}*")
+            
+            # Display the expert feedback
             st.subheader("🔍 Expert Feedback", divider="rainbow")
             display_feedback(st.session_state.feedback)
             
             # Display the improved idea
             st.subheader("⭐ Refined Research Idea", divider="rainbow")
-            display_research_idea(st.session_state.improved_idea)
+            # Check if this is a user-improved idea
+            is_user_improved = st.session_state.has_user_feedback and st.session_state.user_improved_idea is not None
+            display_research_idea(st.session_state.improved_idea, is_user_improved=is_user_improved)
             
             # Display comparison
             st.subheader("📊 Improvement Comparison", divider="rainbow")
@@ -592,13 +805,18 @@ def display_welcome_page():
                 st.write("**Required Skills:**")
                 st.write(", ".join(subfield.required_skills))
 
-def display_research_idea(idea):
+def display_research_idea(idea, is_user_improved=False):
     """Display a research idea in a formatted way"""
     if not idea or not isinstance(idea, dict):
         st.error("Invalid research idea format")
         return
-        
+    
+    # Display title
     st.header(idea.get("title", "Research Idea"))
+    
+    # Add user feedback badge if applicable
+    if is_user_improved:
+        st.markdown("🔄 **This idea has been refined based on your feedback**")
     
     # Create columns for metadata
     col1, col2, col3 = st.columns(3)
@@ -615,7 +833,7 @@ def display_research_idea(idea):
         st.warning("No detailed content available for this idea")
         return
     
-    # Display the main idea content
+    # Display the research question prominently
     st.subheader("Research Question")
     st.write(idea_content.get("Research Question", ""))
     

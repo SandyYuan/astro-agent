@@ -331,6 +331,155 @@ class IdeaAgent:
         
         return self.current_idea
 
+    def improve_idea_with_user_feedback(self, user_feedback: str) -> Dict[str, Any]:
+        """Improve the current idea based on direct user feedback."""
+        if not self.current_idea:
+            raise ValueError("No current idea exists. Generate an initial idea first.")
+        
+        # Track that we're using user feedback
+        self.improvement_count += 1
+        
+        # Get the original research idea components
+        original_research_question = self.current_idea['idea'].get('Research Question', '')
+        
+        # Create improvement prompt that includes original idea and user feedback
+        improvement_prompt = f"""
+    You are an astronomy researcher revising your research proposal based on direct user feedback.
+
+    YOUR ORIGINAL PROPOSAL:
+    Title: "{self.current_idea['title']}"
+
+    Research Question:
+    {original_research_question}
+
+    Background:
+    {self.current_idea['idea'].get('Background', '')}
+
+    Methodology:
+    {self.current_idea['idea'].get('Methodology', '')}
+
+    Expected Outcomes:
+    {self.current_idea['idea'].get('Expected Outcomes', '')}
+
+    Potential Challenges:
+    {self.current_idea['idea'].get('Potential Challenges', '')}
+
+    USER FEEDBACK TO ADDRESS:
+    {user_feedback}
+
+    INSTRUCTIONS:
+
+    Create an improved version of your research proposal that:
+    1. Maintains your original research direction but addresses the user's feedback
+    2. Ensures the methodology is sound and the project is feasible
+    3. Keeps the research focused and scientifically rigorous
+    4. Ensures claims are proportional to what methods can actually measure
+    5. Is appropriate for your skill level ({self.student_profile['skill_level']}) within your timeframe ({self.student_profile['time_frame']})
+    6. Uses only the available resources: {', '.join(self.student_profile['available_resources'])}
+
+    CRITICAL FORMAT REQUIREMENTS:
+    1. The Research Question must follow the same format as the original, beginning with "In this project, we will use..." 
+    DO NOT phrase it as an interrogative question starting with "How" or "What"
+    2. Keep the research question direct and concise
+    3. Maintain the same structure but improve the content to address the feedback
+
+    Your response MUST follow this exact format:
+
+    # [Create a specific improved title here - NOT a placeholder]
+
+    ## Research Question
+    "In this project, we will use [specific data sets/observations] and [specific methods/tools/techniques] to [clear research objective - what will be measured, detected, or analyzed]."
+
+    [Additional context and importance of the research, addressing the user's feedback]
+
+    ## Background
+    [Improved background]
+
+    ## Methodology
+    Begin with: "To address the problem of [restate the specific problem], we will use the following approach:"
+
+    [Improved methodology that addresses the user's feedback]
+
+    ## Expected Outcomes
+    [Improved expected outcomes]
+
+    ## Potential Challenges
+    [Improved potential challenges]
+
+    ## Required Skills
+    [Improved required skills]
+
+    ## Broader Connections
+    [Improved broader connections]
+
+    Make sure your revised proposal is scientifically accurate, methodologically sound, feasible, and addresses all aspects of the user's feedback.
+    """
+            
+        # Generate the improved idea
+        improved_idea_text = self.llm_client.generate_content(improvement_prompt)
+        
+        # Parse the improved idea using the same parsing logic as in improve_idea
+        sections = [
+            "Research Question",
+            "Background",
+            "Methodology",
+            "Expected Outcomes",
+            "Potential Challenges",
+            "Required Skills",
+            "Broader Connections"
+        ]
+        
+        parsed_idea = {}
+        current_section = None
+        section_content = []
+        
+        # Extract the title first (should be on the first line with # prefix)
+        title = ""
+        for line in improved_idea_text.split('\n'):
+            if line.startswith('# '):
+                title = line.replace('# ', '').strip()
+                break
+        
+        # Now parse the rest of the content
+        for line in improved_idea_text.split('\n'):
+            # Skip the title line we already processed
+            if line.startswith('# '):
+                continue
+                
+            # Check if line starts a new section
+            new_section = False
+            
+            if line.startswith('## '):
+                section_name = line.replace('## ', '').strip()
+                if section_name in sections:
+                    if current_section and section_content:
+                        parsed_idea[current_section] = '\n'.join(section_content).strip()
+                    current_section = section_name
+                    section_content = []
+                    new_section = True
+            
+            if not new_section and current_section is not None:
+                section_content.append(line)
+        
+        # Add the last section
+        if current_section and section_content:
+            parsed_idea[current_section] = '\n'.join(section_content).strip()
+        
+        # Create the improved idea with the same structure as the original
+        improved_idea = {
+            "title": title if title else "Improved Research Project",
+            "subfields": self.current_idea.get("subfields", []),
+            "skill_level": self.current_idea.get("skill_level", "beginner"),
+            "time_frame": self.current_idea.get("time_frame", "1 year"),
+            "resources_needed": self.current_idea.get("resources_needed", []),
+            "idea": parsed_idea
+        }
+        
+        # Update the current idea to the improved version
+        self.current_idea = improved_idea
+        
+        return improved_idea
+
 def generate_research_idea(
     api_key: str,
     client: Optional[Any] = None,  # Add client parameter
@@ -438,11 +587,12 @@ def generate_research_idea(
         
         # Shuffle and limit random topics
         random.shuffle(random_topics)
-        selected_topics = random_topics[:4]
-    
+        selected_topics = random_topics[:1]
+        print("selected_topics", selected_topics)
+
     # Remove duplicates while preserving order
     selected_topics = list(dict.fromkeys(selected_topics))
-    
+
     # Create challenges list separately
     challenges_list = []
     for subfield in relevant_subfields:
