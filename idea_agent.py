@@ -605,11 +605,11 @@ def generate_research_idea(
     context_section = ""
     if additional_context and additional_context.strip():
         context_section = f"""
-Additional Student Context:
-{additional_context}
+        Additional Student Context:
+        {additional_context}
 
-Use the above information about the student's background, previous projects, and specific interests to tailor the research idea accordingly.
-"""
+        Use the above information about the student's background, previous projects, and specific interests to tailor the research idea accordingly.
+        """
     
     #     # Construct improved prompt for the LLM
     #     if user_specified_topics:
@@ -635,6 +635,10 @@ Parameters:
 - Time frame: {time_frame}
 - Available resources: {', '.join(available_resources)}
 - Skill level: {skill_level}
+
+IMPORTANT - SPECIFIC USER GUIDANCE:
+The student has provided the following additional context that should strongly guide your research idea generation:
+{additional_context}
 
 Your response MUST follow this exact format with all sections thoroughly completed:
 
@@ -705,10 +709,9 @@ IMPORTANT SCIENTIFIC ACCURACY GUIDELINES:
 4. Double-check that the research question actually addresses the challenge it claims to address
 5. Verify that the methodology logically connects to the expected outcomes
 6. Ensure physical principles and astronomical phenomena are described accurately
-7. Avoid suggesting breakthrough discoveries for beginner projects; focus on incremental advances
-8. For observational projects, consider practical limitations like telescope time availability
-9. Don't overstate the impact - be honest about the scope and limitations
-10. Ensure all astronomical terminology and concepts are used correctly
+7. For observational projects, consider practical limitations like telescope time availability
+8. Don't overstate the impact - be honest about the scope and limitations
+9. Ensure all astronomical terminology and concepts are used correctly
 
 CRITICAL SCIENTIFIC REASONING REQUIREMENTS:
 1. DIRECT CONNECTIONS: Only propose research where there is a DIRECT, ESTABLISHED connection between the method and what it can measure. Avoid tenuous or speculative connections.

@@ -623,13 +623,16 @@ def main():
                 )
             
             # Additional context text area - direct widget
-            st.text_area(
+            additional_context_input = st.text_area(
                 "Provide any additional information about yourself",
                 value=st.session_state.additional_context,
                 height=150,
                 help="Include previous research experience, specific interests, career goals, or particular astronomy phenomena you're curious about.",
-                key="additional_context"
+                key="additional_context_input"
             )
+            
+            # Update session state with the current value
+            st.session_state.additional_context = additional_context_input
             
             # Add literature review toggle option
             st.checkbox(

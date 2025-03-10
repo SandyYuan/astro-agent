@@ -46,18 +46,6 @@ class LLMClient:
             Generated text response
         """
         if self.provider == "google":
-            # # For Google, use the genai.generate_content method
-            # generation_config = {
-            #     "temperature": temperature,
-            #     "top_p": 0.95,
-            #     "top_k": 0,
-            # }
-            
-            # model = self.genai.GenerativeModel("gemini-2.0-flash-thinking-exp")
-            # response = model.generate_content(
-            #     prompt,
-            #     generation_config=generation_config
-            # )
 
             response = self.client.models.generate_content(
                 model="gemini-2.0-flash-thinking-exp", 
