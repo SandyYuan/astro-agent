@@ -4,6 +4,9 @@ import asyncio
 import nest_asyncio
 import os
 import time
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from typing import Dict, Any, List, Optional
 
 
@@ -195,9 +198,31 @@ def toggle_literature_review():
 def run_full_pipeline():
     """Run the entire idea generation, literature review, feedback, and improvement pipeline"""
     # First check if we have valid agents
-    if not st.session_state.idea_agent or not st.session_state.reflection_agent:
-        st.error("API client not initialized. Please enter a valid API key.")
+    if not st.session_state.api_key:
+        st.error("Please enter a valid API key in the sidebar.")
         return False
+        
+    # Ensure agents are initialized
+    if not st.session_state.idea_agent:
+        try:
+            st.session_state.idea_agent = IdeaAgent(st.session_state.api_key, provider=st.session_state.provider)
+        except Exception as e:
+            st.error(f"Error initializing idea agent: {str(e)}")
+            return False
+            
+    if not st.session_state.reflection_agent:
+        try:
+            st.session_state.reflection_agent = AstronomyReflectionAgent(st.session_state.api_key, provider=st.session_state.provider)
+        except Exception as e:
+            st.error(f"Error initializing reflection agent: {str(e)}")
+            return False
+            
+    if not st.session_state.literature_agent and not st.session_state.skip_literature_review:
+        try:
+            st.session_state.literature_agent = LiteratureAgent(st.session_state.api_key, provider=st.session_state.provider)
+        except Exception as e:
+            st.error(f"Error initializing literature agent: {str(e)}")
+            return False
 
     try:
         # Step 1: Generate initial idea with a timeout
@@ -527,65 +552,8 @@ def main():
     
     # Sidebar for inputs and actions
     with st.sidebar:
-        st.header("Model Provider")
-        provider = st.selectbox(
-            "Select AI Model Provider",
-            options=["openai-gpt-o1", "google-gemini-2.0-thinking"],
-            index=0 if st.session_state.provider == "azure" else 1,
-            key="provider_selection"
-        )
-        
-        # Update the provider in session state - convert display name to internal name
-        if provider == "openai-gpt-o1":
-            st.session_state.provider = "azure"
-        elif provider == "google-gemini-2.0-thinking":
-            st.session_state.provider = "google"
-        
-        # Show appropriate API key input based on provider
-        st.header("API Key")
-        api_key_label = "Enter your Azure OpenAI API Key" if provider == "openai-gpt-o1" else "Enter your Google AI Studio API Key"
-        api_key_help = "Get your API key from Azure OpenAI Service" if provider == "openai-gpt-o1" else "Get your API key from https://makersuite.google.com/app/apikey"
-        
-        api_key = st.text_input(
-            api_key_label,
-            type="password",
-            help=api_key_help,
-            key="api_key_input",
-            value=st.session_state.api_key
-        )
-        
         # Only continue if API key is provided
-        if api_key:
-            st.session_state.api_key = api_key
-            
-            # Reset agents if provider changes
-            if st.button("Apply Provider/API Key"):
-                st.session_state.idea_agent = None
-                st.session_state.reflection_agent = None
-                st.session_state.literature_agent = None
-                st.rerun()
-            
-            if not st.session_state.idea_agent:
-                try:
-                    st.session_state.idea_agent = IdeaAgent(api_key, provider=st.session_state.provider)
-                except Exception as e:
-                    st.error(f"Error initializing idea agent: {str(e)}")
-
-            if not st.session_state.reflection_agent:
-                try:
-                    st.session_state.reflection_agent = AstronomyReflectionAgent(api_key, provider=st.session_state.provider)
-                except Exception as e:
-                    st.error(f"Error initializing reflection agent: {str(e)}")
-            
-            if not st.session_state.literature_agent:
-                try:
-                    st.session_state.literature_agent = LiteratureAgent(api_key, provider=st.session_state.provider)
-                except Exception as e:
-                    st.error(f"Error initializing literature agent: {str(e)}")
-                    
-            # Display Status
-            st.success("API key set. Ready to generate ideas!")
-            
+        if st.session_state.api_key:
             st.header("Student Profile")
             
             # Astronomy interests
@@ -689,11 +657,183 @@ def main():
                 on_click=reset_state, 
                 key="btn_reset"
             )
+        else:
+            st.header("Model Provider")
+            provider = st.selectbox(
+                "Select AI Model Provider",
+                options=["openai-gpt-o1", "google-gemini-2.0-thinking"],
+                index=0 if st.session_state.provider == "azure" else 1,
+                key="provider_selection"
+            )
+            
+            # Update the provider in session state - convert display name to internal name
+            if provider == "openai-gpt-o1":
+                st.session_state.provider = "azure"
+            elif provider == "google-gemini-2.0-thinking":
+                st.session_state.provider = "google"
+            
+            # Show appropriate API key input based on provider
+            st.header("API Key")
+            api_key_label = "Enter your Azure OpenAI API Key" if provider == "openai-gpt-o1" else "Enter your Google AI Studio API Key"
+            api_key_help = "Get your API key from Azure OpenAI Service" if provider == "openai-gpt-o1" else "Get your API key from https://makersuite.google.com/app/apikey"
+            
+            api_key = st.text_input(
+                api_key_label,
+                type="password",
+                help=api_key_help,
+                key="api_key_input",
+                value=st.session_state.api_key
+            )
+            
+            # Always display the Apply button
+            if st.button("Apply Provider/API Key", type="primary", key="apply_key_button"):
+                if api_key:  # Only update if there's actually a key
+                    st.session_state.api_key = api_key
+                    st.session_state.idea_agent = None
+                    st.session_state.reflection_agent = None
+                    st.session_state.literature_agent = None
+                    st.rerun()
+                else:
+                    st.error("Please enter an API key first")
+            
+            # Only continue if API key is provided
+            if api_key and st.session_state.api_key == api_key:
+                if not st.session_state.idea_agent:
+                    try:
+                        st.session_state.idea_agent = IdeaAgent(api_key, provider=st.session_state.provider)
+                    except Exception as e:
+                        st.error(f"Error initializing idea agent: {str(e)}")
+                    
+                if not st.session_state.reflection_agent:
+                    try:
+                        st.session_state.reflection_agent = AstronomyReflectionAgent(api_key, provider=st.session_state.provider)
+                    except Exception as e:
+                        st.error(f"Error initializing reflection agent: {str(e)}")
+                
+                if not st.session_state.literature_agent:
+                    try:
+                        st.session_state.literature_agent = LiteratureAgent(api_key, provider=st.session_state.provider)
+                    except Exception as e:
+                        st.error(f"Error initializing literature agent: {str(e)}")
+                
+                # Display Status
+                st.success("API key set. Ready to generate ideas!")
+        
+        # Add feedback section at the bottom of the sidebar
+        st.markdown("---")  # Add a separator
+        st.markdown("""
+        <a href="mailto:sihany@stanford.edu?subject=Astro-agent%20feedback" target="_blank" style="text-decoration: none;">
+            <div style="padding: 0.5rem; background-color: #4CAF50; color: white; border-radius: 4px; text-align: center; margin: 1rem 0;">
+                📝 Send Feedback
+            </div>
+        </a>
+        """, unsafe_allow_html=True)
 
     # Main content area
     if st.session_state.app_stage == 'start':
         # Show welcome message and instructions
         display_welcome_page()
+    
+    elif st.session_state.app_stage == 'browse_subfields':
+        # Display the subfields browser
+        st.header("Astronomy Subfields")
+        st.write("Browse through different astronomy subfields and their current research challenges:")
+        
+        for subfield in ASTRONOMY_SUBFIELDS:
+            with st.expander(subfield.name):
+                st.write(subfield.description)
+                st.write("**Current Challenges:**")
+                for challenge in subfield.current_challenges:
+                    st.write(f"- {challenge}")
+                st.write("**Required Skills:**")
+                st.write(", ".join(subfield.required_skills))
+    
+    elif st.session_state.app_stage == 'idea_generated':
+        # Display the generated idea
+        st.subheader("📝 Research Idea", divider="rainbow")
+        display_research_idea(st.session_state.current_idea)
+        
+        # Add user feedback section
+        st.subheader("✏️ Provide Feedback", divider="gray")
+        st.text_area(
+            "If you have specific suggestions or requests to improve this idea, please provide them below:",
+            value=st.session_state.user_feedback,
+            height=150,
+            key="user_feedback",
+            help="Your feedback will be used to refine the research idea further."
+        )
+        
+        # Add button to submit feedback
+        if st.button("Submit Feedback", key="btn_submit_feedback", type="primary"):
+            submit_user_feedback()
+            # Rerun to process the feedback immediately
+            st.rerun()
+        
+        # If we're showing the process, display the next steps
+        if st.session_state.show_process:
+            st.subheader("Next Steps", divider="gray")
+            st.write("The following steps will be performed to improve your research idea:")
+            st.write("1. ✅ Generate initial research idea")
+            st.write("2. 🔄 Perform literature review (in progress)")
+            st.write("3. 🔄 Get expert feedback")
+            st.write("4. 🔄 Refine the idea")
+    
+    elif st.session_state.app_stage == 'literature_reviewed':
+        # Display the generated idea
+        st.subheader("📝 Research Idea", divider="rainbow")
+        display_research_idea(st.session_state.current_idea)
+        
+        # Display literature review
+        st.subheader("📚 Literature Review", divider="rainbow")
+        display_literature_review(st.session_state.literature_feedback)
+        
+        # Add user feedback section
+        st.subheader("✏️ Provide Feedback", divider="gray")
+        st.text_area(
+            "If you have specific suggestions or requests to improve this idea, please provide them below:",
+            value=st.session_state.user_feedback,
+            height=150,
+            key="user_feedback",
+            help="Your feedback will be used to refine the research idea further."
+        )
+        
+        # Add button to submit feedback
+        if st.button("Submit Feedback", key="btn_submit_feedback", type="primary"):
+            submit_user_feedback()
+            # Rerun to process the feedback immediately
+            st.rerun()
+        
+        # If we're showing the process, display the next steps
+        if st.session_state.show_process:
+            st.subheader("Next Steps", divider="gray")
+            st.write("The following steps will be performed to improve your research idea:")
+            st.write("1. ✅ Generate initial research idea")
+            st.write("2. ✅ Perform literature review")
+            st.write("3. 🔄 Get expert feedback (in progress)")
+            st.write("4. 🔄 Refine the idea")
+    
+    elif st.session_state.app_stage == 'feedback_received':
+        # Display the generated idea
+        st.subheader("📝 Initial Research Idea", divider="rainbow")
+        display_research_idea(st.session_state.current_idea)
+        
+        # Display literature review if available
+        if st.session_state.literature_feedback:
+            st.subheader("📚 Literature Review", divider="rainbow")
+            display_literature_review(st.session_state.literature_feedback)
+        
+        # Display the expert feedback
+        st.subheader("🔍 Expert Feedback", divider="rainbow")
+        display_feedback(st.session_state.feedback)
+        
+        # If we're showing the process, display the next steps
+        if st.session_state.show_process:
+            st.subheader("Next Steps", divider="gray")
+            st.write("The following steps will be performed to improve your research idea:")
+            st.write("1. ✅ Generate initial research idea")
+            st.write("2. ✅ Perform literature review")
+            st.write("3. ✅ Get expert feedback")
+            st.write("4. 🔄 Refine the idea (in progress)")
     
     elif st.session_state.app_stage == 'completed':
         # Display only the improved idea by default

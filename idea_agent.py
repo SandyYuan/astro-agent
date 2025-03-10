@@ -596,7 +596,7 @@ def generate_research_idea(
     # Create challenges list separately
     challenges_list = []
     for subfield in relevant_subfields:
-        for challenge in subfield.current_challenges[:2]:
+        for challenge in subfield.current_challenges:
             challenges_list.append(f"- {challenge}")
     
     challenges_text = "\n".join(challenges_list)
@@ -611,25 +611,22 @@ Additional Student Context:
 Use the above information about the student's background, previous projects, and specific interests to tailor the research idea accordingly.
 """
     
-    # Construct improved prompt for the LLM
-    if user_specified_topics:
-        diversity_section = """USER RESEARCH FOCUS: The student has explicitly expressed interest in the following research direction(s). Your idea MUST focus specifically on addressing these interests:"""
-    else:
-        diversity_section = """DIVERSITY REQUIREMENT: Explore the full breadth of potential research topics within the selected subfields. Avoid common or popular research areas unless they represent a truly novel approach. Consider:
-- Intersections between different subfields that are rarely explored
-- Understudied objects, phenomena, or regions within the subfields
-- Novel applications of methods from other fields
-- Contrarian approaches that challenge conventional wisdom
-- Connections between the selected subfields that create unique research opportunities
+    #     # Construct improved prompt for the LLM
+    #     if user_specified_topics:
+    #         diversity_section = """USER RESEARCH FOCUS: The student has explicitly expressed interest in the following research direction(s). Your idea MUST focus specifically on addressing these interests:"""
+    #     else:
+    #         diversity_section = """DIVERSITY REQUIREMENT: Explore the full breadth of potential research topics within the selected subfields. Avoid common or popular research areas unless they represent a truly novel approach. Consider:
+    # - Intersections between different subfields that are rarely explored
+    # - Understudied objects, phenomena, or regions within the subfields
+    # - Novel applications of methods from other fields
+    # - Contrarian approaches that challenge conventional wisdom
+    # - Connections between the selected subfields that create unique research opportunities
 
-SPECIFIC RESEARCH DIRECTIONS TO CONSIDER: Your research idea should address one or more of these challenges or concepts in a novel way:"""
+    # SPECIFIC RESEARCH DIRECTIONS TO CONSIDER: Your research idea should address one or more of these challenges or concepts in a novel way:"""
 
     prompt = f"""Generate a novel and scientifically accurate astronomy research idea for a {skill_level} graduate student.
 
-IMPORTANT: Create a SPECIFIC, DESCRIPTIVE title that clearly describes the exact research project. The title should precisely capture what the student will be investigating.
-
-{diversity_section}
-
+Your research idea should address one or more of these challenges or concepts in a novel way:
 {chr(10).join(f"- {topic}" for topic in selected_topics)}
 
 Parameters:
@@ -639,13 +636,10 @@ Parameters:
 - Available resources: {', '.join(available_resources)}
 - Skill level: {skill_level}
 
-Current challenges in the field:
-{challenges_text}
-{context_section}
-
 Your response MUST follow this exact format with all sections thoroughly completed:
 
 # [DESCRIPTIVE PROJECT TITLE]
+IMPORTANT: Create a SPECIFIC, DESCRIPTIVE title that clearly describes the exact research project. The title should precisely capture what the student will be investigating.
 
 ## Research Question
 Begin with a clear, explicit mission statement formatted as follows:
@@ -758,6 +752,7 @@ ALL PROJECTS MUST:
 - Be completable within the specified timeframe
 - Produce meaningful results even if preliminary
 """
+    print("idea prompt", prompt)
 
     # Call the LLM to generate the research idea using the client
     try:
