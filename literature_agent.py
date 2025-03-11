@@ -43,7 +43,10 @@ class LiteratureAgent:
         self.model = model
         
         # Initialize the LLM client with the appropriate provider
-        self.llm_client = LLMClient(api_key, provider)
+        try:
+            self.llm_client = LLMClient(api_key, provider)
+        except ValueError as e:
+            raise ValueError(f"Error initializing literature agent: {str(e)}")
         
         # ArXiv categories relevant to astronomy
         self.astronomy_categories = [

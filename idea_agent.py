@@ -29,7 +29,10 @@ class IdeaAgent:
         self.provider = provider
         
         # Initialize the LLM client with the appropriate provider
-        self.llm_client = LLMClient(api_key, provider)
+        try:
+            self.llm_client = LLMClient(api_key, provider)
+        except ValueError as e:
+            raise ValueError(f"Error initializing idea agent: {str(e)}")
                 
         self.original_prompt = None
         self.current_idea = None

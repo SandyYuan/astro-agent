@@ -50,7 +50,10 @@ class AstronomyReflectionAgent:
         self.model = model
         
         # Initialize the LLM client with the appropriate provider
-        self.llm_client = LLMClient(api_key, provider)
+        try:
+            self.llm_client = LLMClient(api_key, provider)
+        except ValueError as e:
+            raise ValueError(f"Error initializing reflection agent: {str(e)}")
     
     def evaluate_proposal(self, proposal: Dict[str, Any], literature_feedback: Optional[Dict[str, Any]] = None) -> ProposalFeedback:
         """Evaluate a proposal and return structured feedback."""

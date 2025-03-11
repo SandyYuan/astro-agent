@@ -9,7 +9,7 @@ class LLMClient:
         
         Args:
             api_key: API key for the selected provider
-            provider: 'azure' or 'google'
+            provider: 'azure', 'google', or 'claude'
         """
         self.api_key = api_key
         self.provider = provider
@@ -32,6 +32,12 @@ class LLMClient:
                 )
             except ImportError:
                 raise ImportError("langchain_openai is not installed")
+        elif provider == "claude":
+            try:
+                import anthropic
+                self.client = anthropic.Anthropic(api_key=api_key)
+            except ImportError:
+                raise ImportError("anthropic is not installed")
         else:
             raise ValueError(f"Unsupported provider: {provider}")
     
@@ -46,17 +52,33 @@ class LLMClient:
             Generated text response
         """
         if self.provider == "google":
-
             response = self.client.models.generate_content(
                 model="gemini-2.0-flash-thinking-exp", 
                 contents=prompt
             )
-
             return response.text
         elif self.provider == "azure":
             # For Azure, we can directly invoke the client
             response = self.client.invoke(prompt)
             return response.content
+        elif self.provider == "claude":
+            # For Claude, we need to structure the message differently
+            response = self.client.messages.create(
+                model="claude-3-7-sonnet-20250219",
+                max_tokens=8000,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ]
+            )
+            return response.content[0].text
         
         # Fallback (should never reach here)
         raise ValueError(f"Unsupported provider: {self.provider}") 

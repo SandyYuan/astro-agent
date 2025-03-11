@@ -34,6 +34,9 @@ from llm_client import LLMClient
 # Create the standalone functions if needed
 def generate_research_idea(api_key, **kwargs):
     provider = kwargs.pop('provider', 'azure')  # Get provider with default to Azure
+    # Validate that provider is one of the supported options
+    if provider not in ["azure", "google", "claude"]:
+        raise ValueError(f"Unsupported provider: {provider}")
     agent = IdeaAgent(api_key, provider=provider)
     return agent.generate_initial_idea(**kwargs)
 
@@ -664,8 +667,8 @@ def main():
             st.header("Model Provider")
             provider = st.selectbox(
                 "Select AI Model Provider",
-                options=["openai-gpt-o1", "google-gemini-2.0-thinking"],
-                index=0 if st.session_state.provider == "azure" else 1,
+                options=["openai-gpt-o1", "google-gemini-2.0-thinking", "claude-3-7-sonnet"],
+                index=0 if st.session_state.provider == "azure" else (1 if st.session_state.provider == "google" else 2),
                 key="provider_selection"
             )
             
@@ -674,11 +677,20 @@ def main():
                 st.session_state.provider = "azure"
             elif provider == "google-gemini-2.0-thinking":
                 st.session_state.provider = "google"
+            elif provider == "claude-3-7-sonnet":
+                st.session_state.provider = "claude"
             
             # Show appropriate API key input based on provider
             st.header("API Key")
-            api_key_label = "Enter your Azure OpenAI API Key" if provider == "openai-gpt-o1" else "Enter your Google AI Studio API Key"
-            api_key_help = "Get your API key from Azure OpenAI Service" if provider == "openai-gpt-o1" else "Get your API key from https://makersuite.google.com/app/apikey"
+            if provider == "openai-gpt-o1":
+                api_key_label = "Enter your Azure OpenAI API Key"
+                api_key_help = "Get your API key from Azure OpenAI Service"
+            elif provider == "google-gemini-2.0-thinking":
+                api_key_label = "Enter your Google AI Studio API Key"
+                api_key_help = "Get your API key from https://makersuite.google.com/app/apikey"
+            else:  # Claude
+                api_key_label = "Enter your Anthropic API Key"
+                api_key_help = "Get your API key from https://console.anthropic.com/keys"
             
             api_key = st.text_input(
                 api_key_label,
