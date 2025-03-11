@@ -516,6 +516,95 @@ def process_user_feedback():
         with st.expander("Error details"):
             st.write(str(e))
 
+def send_feedback():
+    """Prepare the full process JSON and show an email form to send feedback with attachment"""
+    # Only proceed if we have a completed idea process
+    if not hasattr(st.session_state, 'improved_idea') or not st.session_state.improved_idea:
+        st.sidebar.error("Generate a research idea first to include with your feedback.")
+        return
+
+    # Create the comprehensive export data
+    export_data = {
+        "final_idea": st.session_state.improved_idea,
+        "development_process": {
+            "initial_idea": st.session_state.current_idea,
+            "has_user_feedback": st.session_state.has_user_feedback if hasattr(st.session_state, 'has_user_feedback') else False,
+            "user_feedback": st.session_state.user_feedback if hasattr(st.session_state, 'user_feedback') else None,
+        }
+    }
+    
+    # Add expert feedback if available
+    if hasattr(st.session_state, 'feedback') and st.session_state.feedback:
+        # Convert feedback object to dict for JSON serialization
+        if hasattr(st.session_state.feedback, '__dict__'):
+            feedback_dict = st.session_state.feedback.__dict__
+        else:
+            feedback_dict = {}
+            for attr in dir(st.session_state.feedback):
+                if not attr.startswith('_') and not callable(getattr(st.session_state.feedback, attr)):
+                    feedback_dict[attr] = getattr(st.session_state.feedback, attr)
+        
+        export_data["development_process"]["expert_feedback"] = feedback_dict
+    
+    # Add literature feedback if available
+    if hasattr(st.session_state, 'literature_feedback') and st.session_state.literature_feedback:
+        # Convert feedback object to dict for JSON serialization
+        if hasattr(st.session_state.literature_feedback, '__dict__'):
+            literature_dict = st.session_state.literature_feedback.__dict__
+        else:
+            literature_dict = {}
+            for attr in dir(st.session_state.literature_feedback):
+                if not attr.startswith('_') and not callable(getattr(st.session_state.literature_feedback, attr)):
+                    literature_dict[attr] = getattr(st.session_state.literature_feedback, attr)
+        
+        export_data["development_process"]["literature_feedback"] = literature_dict
+    
+    # Store JSON data
+    json_data = json.dumps(export_data, indent=2, default=str)
+    version_tag = f"v{st.session_state.improved_idea.get('version', '1')}" if 'version' in st.session_state.improved_idea else "research_idea"
+    filename = f"astronomy_full_process_{version_tag}.json"
+    
+    # Create a mailto link with instructions to attach the file
+    st.sidebar.download_button(
+        label="Step 1: Download log files",
+        data=json_data,
+        file_name=filename,
+        mime="application/json",
+        key="download_for_email"
+    )
+    
+    # Create a direct mailto link with pre-filled subject
+    idea_title = st.session_state.improved_idea.get("title", "Research Idea")
+    email_subject = f"Astro-agent feedback: {idea_title}"
+    email_body = "Please attach the downloaded JSON file to this email. Your feedback:"
+    mailto_url = f"mailto:sihany@stanford.edu?subject={email_subject}&body={email_body}"
+    
+    # Use a clean link approach that will inherit Streamlit's styling
+    components_js = """
+    <script>
+    function open_email(url) {
+        window.open(url, '_blank');
+    }
+    </script>
+    """
+    st.sidebar.markdown(components_js, unsafe_allow_html=True)
+    
+    # Add a simple wrapper to match the styling exactly
+    if "email_link_clicked" not in st.session_state:
+        st.session_state.email_link_clicked = False
+        
+    # Use a plain button that matches the download button styling
+    if st.sidebar.button("Step 2: Email Feedback", key="email_btn"):
+        # This provides a button with identical styling to the download button
+        st.session_state.email_link_clicked = True
+        st.sidebar.markdown(f"""
+        <script>
+            open_email("{mailto_url}");
+        </script>
+        """, unsafe_allow_html=True)
+    
+    st.sidebar.info("Please attach the downloaded JSON file to your email before sending.")
+
 def main():
     st.set_page_config(
         page_title="Astronomy Research Idea Generator",
@@ -736,13 +825,26 @@ def main():
         
         # Add feedback section at the bottom of the sidebar
         st.markdown("---")  # Add a separator
-        st.markdown("""
-        <a href="mailto:sihany@stanford.edu?subject=Astro-agent%20feedback" target="_blank" style="text-decoration: none;">
-            <div style="padding: 0.5rem; background-color: #4CAF50; color: white; border-radius: 4px; text-align: center; margin: 1rem 0;">
-                📝 Send Feedback
-            </div>
-        </a>
-        """, unsafe_allow_html=True)
+        
+        # Check if we have a completed idea process
+        if hasattr(st.session_state, 'improved_idea') and st.session_state.improved_idea:
+            if st.button("📝 Send Feedback with log file", key="feedback_button"):
+                send_feedback()
+        else:
+            # Replace the green button with a transparent Streamlit-style button
+            if st.button("📝 Send Feedback", key="simple_feedback_button"):
+                # Open mailto link directly
+                email_subject = "Astro-agent feedback"
+                mailto_url = f"mailto:sihany@stanford.edu?subject={email_subject}"
+                
+                # Use JavaScript to open the email client
+                st.markdown(f"""
+                <script>
+                    window.open('{mailto_url}', '_blank');
+                </script>
+                """, unsafe_allow_html=True)
+                
+                st.info("Opening your email client...")
 
     # Main content area
     if st.session_state.app_stage == 'start':
@@ -1013,6 +1115,51 @@ def display_research_idea(idea, is_user_improved=False):
             label="Download JSON",
             data=json.dumps(idea, indent=2),
             file_name=f"astronomy_{version_tag}.json",
+            mime="application/json"
+        )
+    
+    # Add button to export the full process
+    if st.button(f"Export Full Process", key=f"export_process_{idea.get('title', '')[:10]}_{version_tag}"):
+        # Create a comprehensive export that includes the development process
+        export_data = {
+            "final_idea": idea,
+            "development_process": {
+                "initial_idea": st.session_state.current_idea,
+                "has_user_feedback": st.session_state.has_user_feedback if hasattr(st.session_state, 'has_user_feedback') else False,
+                "user_feedback": st.session_state.user_feedback if hasattr(st.session_state, 'user_feedback') else None,
+            }
+        }
+        
+        # Add expert feedback if available
+        if hasattr(st.session_state, 'feedback') and st.session_state.feedback:
+            # Convert feedback object to dict for JSON serialization
+            if hasattr(st.session_state.feedback, '__dict__'):
+                feedback_dict = st.session_state.feedback.__dict__
+            else:
+                feedback_dict = {}
+                for attr in dir(st.session_state.feedback):
+                    if not attr.startswith('_') and not callable(getattr(st.session_state.feedback, attr)):
+                        feedback_dict[attr] = getattr(st.session_state.feedback, attr)
+            
+            export_data["development_process"]["expert_feedback"] = feedback_dict
+        
+        # Add literature feedback if available
+        if hasattr(st.session_state, 'literature_feedback') and st.session_state.literature_feedback:
+            # Convert feedback object to dict for JSON serialization
+            if hasattr(st.session_state.literature_feedback, '__dict__'):
+                literature_dict = st.session_state.literature_feedback.__dict__
+            else:
+                literature_dict = {}
+                for attr in dir(st.session_state.literature_feedback):
+                    if not attr.startswith('_') and not callable(getattr(st.session_state.literature_feedback, attr)):
+                        literature_dict[attr] = getattr(st.session_state.literature_feedback, attr)
+            
+            export_data["development_process"]["literature_feedback"] = literature_dict
+        
+        st.download_button(
+            label="Download Full Process JSON",
+            data=json.dumps(export_data, indent=2, default=str),
+            file_name=f"astronomy_full_process_{version_tag}.json",
             mime="application/json"
         )
 
