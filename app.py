@@ -881,10 +881,8 @@ def main():
         )
         
         # Add button to submit feedback
-        if st.button("Submit Feedback", key="btn_submit_feedback", type="primary"):
+        if st.button("Submit Feedback and Refine Idea", key="btn_submit_feedback", type="primary"):
             submit_user_feedback()
-            # Rerun to process the feedback immediately
-            st.rerun()
         
         # If we're showing the process, display the next steps
         if st.session_state.show_process:
@@ -915,10 +913,8 @@ def main():
         )
         
         # Add button to submit feedback
-        if st.button("Submit Feedback", key="btn_submit_feedback", type="primary"):
+        if st.button("Submit Feedback and Refine Idea", key="btn_submit_feedback_alt", type="primary"):
             submit_user_feedback()
-            # Rerun to process the feedback immediately
-            st.rerun()
         
         # If we're showing the process, display the next steps
         if st.session_state.show_process:
@@ -971,10 +967,8 @@ def main():
             )
             
             # Add button to submit feedback
-            if st.button("Submit Feedback", key="btn_submit_feedback", type="primary"):
+            if st.button("Submit Feedback and Refine Idea", key="btn_submit_feedback_alt", type="primary"):
                 submit_user_feedback()
-                # Rerun to process the feedback immediately
-                st.rerun()
             
             # Add button to toggle detailed process view
             st.button(
