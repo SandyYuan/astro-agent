@@ -4,9 +4,6 @@ import asyncio
 import nest_asyncio
 import os
 import time
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from typing import Dict, Any, List, Optional
 
 
@@ -450,21 +447,7 @@ def process_user_feedback():
         
         # Step 2: Get expert feedback on the user-improved idea
         with st.spinner("Getting expert feedback on your improved idea..."):
-            # Use the existing feedback_with_timeout function
-            def feedback_with_timeout(timeout_seconds=45):
-                try:
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(
-                            st.session_state.reflection_agent.evaluate_proposal,
-                            st.session_state.current_idea,
-                            st.session_state.literature_feedback  # Pass literature feedback if available
-                        )
-                        # Wait for completion or timeout
-                        return future.result(timeout=timeout_seconds)
-                except concurrent.futures.TimeoutError:
-                    raise TimeoutError("Feedback generation took too long.")
-            
-            # Call with timeout
+            # Reuse the existing feedback_with_timeout function from run_full_pipeline
             feedback = feedback_with_timeout(45)  # 45 second timeout
             
             if not feedback:
@@ -476,20 +459,9 @@ def process_user_feedback():
         
         # Step 3: Final improvement based on expert feedback
         with st.spinner("Refining your idea based on expert feedback..."):
-            # Use the existing improve_with_timeout function
-            def improve_with_timeout(timeout_seconds=45):
-                try:
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        # Convert feedback to dictionary for idea agent
-                        feedback_dict = st.session_state.reflection_agent.format_feedback_for_idea_agent(st.session_state.feedback)
-                        future = executor.submit(
-                            st.session_state.idea_agent.improve_idea,
-                            feedback_dict
-                        )
-                        # Wait for completion or timeout
-                        return future.result(timeout=timeout_seconds)
-                except concurrent.futures.TimeoutError:
-                    raise TimeoutError("Final improvement took too long.")
+            # Reuse the existing improve_with_timeout function from run_full_pipeline
+            # Convert feedback to dictionary for idea agent
+            feedback_dict = st.session_state.reflection_agent.format_feedback_for_idea_agent(st.session_state.feedback)
             
             # Call with timeout
             final_improved_idea = improve_with_timeout(45)  # 45 second timeout
