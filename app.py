@@ -1056,8 +1056,8 @@ def display_research_idea(idea, is_user_improved=False):
         st.warning("No detailed content available for this idea")
         return
     
-    # Display the research question prominently
-    st.subheader("Research Question")
+    # Display the research question prominently, renamed to Idea Summary
+    st.subheader("Idea Summary")
     st.write(idea_content.get("Research Question", ""))
     
     # Create tabs for the remaining sections
@@ -1344,8 +1344,8 @@ def display_comparison(original_idea, improved_idea, feedback):
         st.write("**Refined:**")
         st.write(improved_idea['title'])
     
-    # Research Question comparison
-    st.subheader("2. Research Question Refinement")
+    # Research Question comparison, renamed to Idea Summary
+    st.subheader("2. Idea Summary Refinement")
     col1, col2 = st.columns(2)
     with col1:
         st.write("**Original:**")

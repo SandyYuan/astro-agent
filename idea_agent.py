@@ -207,18 +207,23 @@ class IdeaAgent:
     {5 if not literature_insights else 7}. Is appropriate for your skill level ({self.student_profile['skill_level']}) within your timeframe ({self.student_profile['time_frame']})
     {6 if not literature_insights else 8}. Uses only the available resources: {', '.join(self.student_profile['available_resources'])}
 
-    CRITICAL FORMAT REQUIREMENTS:
-    1. The Research Question must follow the same format as the original, beginning with "In this project, we will use..." 
-    DO NOT phrase it as an interrogative question starting with "How" or "What"
-    2. Keep the research question direct and concise
-    3. Maintain the same structure but improve the content to address the feedback
+    Keep the research question direct and concise!
 
     Your response MUST follow this exact format:
 
     # [Create a specific improved title here - NOT a placeholder]
 
     ## Research Question
-    "In this project, we will use [specific data sets/observations] and [specific methods/tools/techniques] to [clear research objective - what will be measured, detected, or analyzed]."
+    "In this project, we aim to [solve problem/achieve goal] by [summary of solution]."
+
+    Then break down the proposed project into a 2-3 key steps, following rigorous scientific methodology. Format this as:
+    "Specifically, we will first [first step], then we will [second step]. Finally, we will [final step] to [obtain result/achieve goal]."
+
+    IMPORTANT: Explicitly state the specific problem or gap in knowledge this research aims to solve. Format this as:
+    "This research addresses the problem of [specific problem statement], which is currently unresolved because [reasons for knowledge gap]."
+
+    Finally, explain why the proposed method is best-suited for the problem. Format this as:
+    "The proposed method is best-suited for the problem because [specific advantages of approach]."
 
     [Additional context and importance of the research, addressing the scientific concerns raised in the feedback]
 
@@ -380,18 +385,23 @@ class IdeaAgent:
     5. Is appropriate for your skill level ({self.student_profile['skill_level']}) within your timeframe ({self.student_profile['time_frame']})
     6. Uses only the available resources: {', '.join(self.student_profile['available_resources'])}
 
-    CRITICAL FORMAT REQUIREMENTS:
-    1. The Research Question must follow the same format as the original, beginning with "In this project, we will use..." 
-    DO NOT phrase it as an interrogative question starting with "How" or "What"
-    2. Keep the research question direct and concise
-    3. Maintain the same structure but improve the content to address the feedback
+    Keep the research question direct and concise!
 
     Your response MUST follow this exact format:
 
     # [Create a specific improved title here - NOT a placeholder]
 
     ## Research Question
-    "In this project, we will use [specific data sets/observations] and [specific methods/tools/techniques] to [clear research objective - what will be measured, detected, or analyzed]."
+    "In this project, we aim to [solve problem/achieve goal] by [summary of solution]."
+
+    Then break down the proposed project into a 2-3 key steps, following rigorous scientific methodology. Format this as:
+    "Specifically, we will first [first step], then we will [second step]. Finally, we will [final step] to [obtain result/achieve goal]."
+
+    IMPORTANT: Explicitly state the specific problem or gap in knowledge this research aims to solve. Format this as:
+    "This research addresses the problem of [specific problem statement], which is currently unresolved because [reasons for knowledge gap]."
+
+    Finally, explain why the proposed method is best-suited for the problem. Format this as:
+    "The proposed method is best-suited for the problem because [specific advantages of approach]."
 
     [Additional context and importance of the research, addressing the user's feedback]
 
@@ -649,14 +659,17 @@ Your response MUST follow this exact format with all sections thoroughly complet
 IMPORTANT: Create a SPECIFIC, DESCRIPTIVE title that clearly describes the exact research project. The title should precisely capture what the student will be investigating.
 
 ## Research Question
-Begin with a clear, explicit mission statement formatted as follows:
+Begin with a clear, explicit, concise, andpunchy mission statement formatted as follows:
+"In this project, we aim to [solve problem/achieve goal] by [summary of solution/proposal].
 
-"In this project, we will use [specific data sets/observations] and [specific methods/tools/techniques] to [clear research objective - what will be measured, detected, or analyzed]."
-
-Then provide 2-3 sentences explaining why this research is important, impactful, and how it addresses current challenges in the field. Be extremely specific about the objects, phenomena, or data to be studied.
+Then break down the proposed project into a 2-3 key steps, following rigorous scientific methodology. Format this as:
+"Specifically, we will first [first step], then we will [second step]. Finally, we will [final step] to [obtain result/achieve goal]."
 
 IMPORTANT: Explicitly state the specific problem or gap in knowledge this research aims to solve. Format this as:
 "This research addresses the problem of [specific problem statement], which is currently unresolved because [reasons for knowledge gap]."
+
+Finally, explain why the proposed method is best-suited for the problem. Format this as:
+"The proposed method is best-suited for the problem because [specific advantages of approach]."
 
 ## Background
 Provide 3-4 paragraphs explaining:
