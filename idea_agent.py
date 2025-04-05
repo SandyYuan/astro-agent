@@ -198,7 +198,7 @@ class IdeaAgent:
         # Add novelty-specific instructions if literature review was performed
         if literature_insights:
             improvement_prompt += """
-    4. Enhances novelty by incorporating differentiation suggestions and emerging trends
+    4. Enhances novelty based on the **expert's synthesized novelty assessment and recommendations**
     5. Positions your work clearly with respect to the existing literature
     """
 
@@ -653,6 +653,14 @@ IMPORTANT - SPECIFIC USER GUIDANCE:
 The student has provided the following additional context that should strongly guide your research idea generation:
 {additional_context}
 
+**Key Scientific Principles:**
+- Ensure the research question is specific, impactful, and addresses a genuine knowledge gap.
+- Methods must be scientifically sound, clearly linked to the research question, and appropriate for the data/resources.
+- Claims must be realistic and proportional to what the methods and data can actually measure (consider S/N, statistical power, parameter degeneracies).
+- Describe phenomena and use terminology accurately according to established scientific understanding.
+- Scope: The project must be feasible for the student's level ({skill_level}), completable within the timeframe ({time_frame}), and utilize only the specified available resources ({', '.join(available_resources)}).
+- Focus on creative ideas by seeking scientifically plausible connections between different concepts, subfields, or the provided challenges, even if they seem unrelated at first glance.
+
 Your response MUST follow this exact format with all sections thoroughly completed:
 
 # [DESCRIPTIVE PROJECT TITLE]
@@ -717,24 +725,6 @@ List at least five precise technical and knowledge-based skills needed, suggesti
 
 ## Broader Connections
 Explain in detail how this research connects to at least three larger questions in astronomy and astrophysics, and how results from this project might inform future work.
-
-IMPORTANT SCIENTIFIC ACCURACY GUIDELINES:
-1. Do NOT propose methods that are incompatible with the mentioned data sources or resources
-2. Ensure that the method is based on SCIENTIFICALLY CORRECT information
-3. Be realistic about what can be achieved with the available resources and time frame
-4. Double-check that the research question actually addresses the challenge it claims to address
-5. Verify that the methodology logically connects to the expected outcomes
-6. Ensure physical principles and astronomical phenomena are described accurately
-7. For observational projects, consider practical limitations like telescope time availability
-8. Don't overstate the impact - be honest about the scope and limitations
-9. Ensure all astronomical terminology and concepts are used correctly
-
-CRITICAL SCIENTIFIC REASONING REQUIREMENTS:
-1. DIRECT CONNECTIONS: Only propose research where there is a DIRECT, ESTABLISHED connection between the method and what it can measure. Avoid tenuous or speculative connections.
-2. METHOD-GOAL ALIGNMENT: For every claimed measurement or constraint, explicitly justify WHY the proposed method is sensitive to that specific parameter or phenomenon.
-3. DATA SENSITIVITY REALISM: Consider detection limits, signal-to-noise ratios, and statistical power. Never claim precision beyond what current methods allow.
-4. LOGICAL WORKFLOW: Each step in the methodology must logically lead to the next, forming a coherent research pipeline.
-5. PARAMETER DEGENERACIES: Acknowledge parameter degeneracies and explain how they will be addressed. Never claim unique constraints when degeneracies exist.
 
 Make sure the idea is:
 - GENUINELY NOVEL yet connected to existing literature

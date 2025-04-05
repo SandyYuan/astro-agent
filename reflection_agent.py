@@ -169,10 +169,12 @@ class AstronomyReflectionAgent:
         - Does the methodology avoid excessive technical details that obscure the overall approach?
         
         3. NOVELTY AND KNOWLEDGE GAP
-        - Is the problem statement addressing a genuine gap in current understanding?
-        - Does this address a genuine gap in current understanding?
-        - How does it advance beyond existing literature?
-        
+        - **Synthesize the 'LITERATURE REVIEW FINDINGS' provided above** with your own expertise.
+        - Based on both, assess if the proposal addresses a genuine, significant gap in current understanding.
+        - How does it advance beyond the specific literateure cited and the broader field?
+        - Evaluate the originality of the approach and research question.
+        - **Your 'NOVELTY ASSESSMENT' output below should reflect this synthesis.**
+                
         4. IMPACT AND SIGNIFICANCE
         - How important is the problem being addressed?
         - How would results from this project advance astronomical understanding?
