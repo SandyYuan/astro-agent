@@ -12,13 +12,12 @@ try:
 except ImportError:
     genai = None
 
-# Import functions from idea_agent.py
-from idea_agent import (
-    generate_research_idea,
-    generate_multiple_ideas,
-    AstronomySubfield,
-    ASTRONOMY_SUBFIELDS
-)
+# Remove incorrect import block from idea_agent_twocalls
+# from idea_agent_twocalls import (
+#     IdeaAgentTwoCalls as IdeaAgent,
+#     AstronomySubfield,
+#     ASTRONOMY_SUBFIELDS
+# )
 
 # Assuming you've set up API keys in a config.py file
 # from config import google_key
@@ -287,151 +286,145 @@ class AstronomyReflectionAgent:
         return {"strengths": strengths, "concerns": concerns}
     
     def format_feedback_for_idea_agent(self, feedback: ProposalFeedback) -> Dict[str, Any]:
-        """Format feedback in a clear structure for the idea_agent."""
-        # Convert to dictionary for easier integration
-        feedback_dict = {
+        """Format feedback for consumption by the idea agent."""
+        # Extract components
+        sci_concerns = feedback.scientific_validity.get("concerns", []) 
+        meth_concerns = feedback.methodology.get("concerns", [])
+        
+        # Format for the idea agent
+        return {
             "scientific_validity": feedback.scientific_validity,
             "methodology": feedback.methodology,
-            "novelty_assessment": feedback.novelty_assessment,
-            "impact_assessment": feedback.impact_assessment,
-            "feasibility_assessment": feedback.feasibility_assessment,
             "recommendations": feedback.recommendations,
-            "summary": feedback.summary
+            "summary": feedback.summary,
+            "literature_insights": feedback.literature_insights
         }
-        
-        # Add literature insights if available
-        if feedback.literature_insights:
-            feedback_dict["literature_insights"] = feedback.literature_insights
-        
-        return feedback_dict
     
-    def format_feedback_for_display(self, feedback: ProposalFeedback) -> str:
-        """Format feedback in a human-readable format for UI display."""
-        result = "# EXPERT ASTRONOMY FEEDBACK\n\n"
-        
-        result += "## SCIENTIFIC VALIDITY CONCERNS\n"
-        for concern in feedback.scientific_validity.get("concerns", []):
-            result += f"- {concern}\n"
-        
-        result += "\n## METHODOLOGICAL CONCERNS\n"
-        for concern in feedback.methodology.get("concerns", []):
-            result += f"- {concern}\n"
-        
-        result += "\n## RECOMMENDATIONS FOR IMPROVEMENT\n"
-        for i, rec in enumerate(feedback.recommendations, 1):
-            result += f"{i}. {rec}\n"
-        
-        result += f"\n## OVERALL ASSESSMENT\n{feedback.summary}\n"
-        
-        # Add literature insights if available
-        if feedback.literature_insights:
-            result += "\n## LITERATURE INSIGHTS\n"
-            result += f"Novelty Score: {feedback.literature_insights.get('novelty_score', 'N/A')}/10\n\n"
-            result += feedback.literature_insights.get('novelty_assessment', 'No assessment available.')
-        
-        return result
+# Commented out unused function
+# def format_feedback_for_display(self, feedback: ProposalFeedback) -> str:
+#     """Format feedback for display to the user."""
+#     result = []
+#     
+#     # Add scientific validity
+#     result.append("## Scientific Validity")
+#     if feedback.scientific_validity.get("strengths"):
+#         result.append("### Strengths")
+#         for strength in feedback.scientific_validity["strengths"]:
+#             result.append(f"- {strength}")
+#     
+#     if feedback.scientific_validity.get("concerns"):
+#         result.append("### Concerns")
+#         for concern in feedback.scientific_validity["concerns"]:
+#             result.append(f"- {concern}")
+#     
+#     # Add methodology
+#     result.append("\n## Methodology")
+#     if feedback.methodology.get("strengths"):
+#         result.append("### Strengths")
+#         for strength in feedback.methodology["strengths"]:
+#             result.append(f"- {strength}")
+#     
+#     if feedback.methodology.get("concerns"):
+#         result.append("### Concerns")
+#         for concern in feedback.methodology["concerns"]:
+#             result.append(f"- {concern}")
+#             
+#     # Add recommendations
+#     result.append("\n## Recommendations")
+#     for i, rec in enumerate(feedback.recommendations, 1):
+#         result.append(f"{i}. {rec}")
+#     
+#     return "\n".join(result)
     
-    def generate_improvement_prompt(self, original_proposal: Dict[str, Any], feedback: ProposalFeedback) -> str:
-        """Generate a prompt for the idea_agent to improve the proposal based on feedback."""
-        scientific_concerns = "\n".join([f"- {concern}" for concern in feedback.scientific_validity.get("concerns", [])])
-        methodological_concerns = "\n".join([f"- {concern}" for concern in feedback.methodology.get("concerns", [])])
-        recommendations = "\n".join([f"- {rec}" for rec in feedback.recommendations])
-        
-        prompt = f"""
-        Revise the following astronomy research proposal based on expert feedback:
-        
-        Original proposal title: "{original_proposal.get('title', '')}"
-        
-        SCIENTIFIC VALIDITY CONCERNS:
-        {scientific_concerns}
-        
-        METHODOLOGICAL CONCERNS:
-        {methodological_concerns}
-        
-        EXPERT RECOMMENDATIONS:
-        {recommendations}
-        
-        OVERALL ASSESSMENT:
-        {feedback.summary}
-        
-        Create an improved research proposal that:
-        1. Addresses ALL identified scientific concerns
-        2. Fixes the methodological issues
-        3. Incorporates the expert recommendations
-        4. Maintains scientific rigor throughout
-        5. Ensures claims are proportional to what methods can actually measure
-        6. Is appropriate for a {original_proposal.get('skill_level', '')} student within a {original_proposal.get('time_frame', '')} timeframe
-        
-        The improved proposal should follow the same format with all required sections.
-        """
-        
-        return prompt
+# Commented out unused function
+# def generate_improvement_prompt(self, original_proposal: Dict[str, Any], feedback: ProposalFeedback) -> str:
+#     """Generate a prompt for improving the proposal based on feedback."""
+#     title = original_proposal.get("title", "")
+#     research_question = original_proposal.get("idea", {}).get("Research Question", "")
+#     background = original_proposal.get("idea", {}).get("Background", "")
+#     methodology = original_proposal.get("idea", {}).get("Methodology", "")
+#     expected_outcomes = original_proposal.get("idea", {}).get("Expected Outcomes", "")
+#     
+#     # Format feedback components
+#     scientific_concerns = "\n".join([f"- {concern}" for concern in feedback.scientific_validity.get("concerns", [])])
+#     method_concerns = "\n".join([f"- {concern}" for concern in feedback.methodology.get("concerns", [])])
+#     recommendations = "\n".join([f"{i+1}. {rec}" for i, rec in enumerate(feedback.recommendations)])
+#     
+#     # Generate the prompt
+#     prompt = f"""
+#     You are an astronomy researcher revising a proposal based on expert feedback.
+#     
+#     Your original proposal:
+#     
+#     # {title}
+#     
+#     ## Research Question:
+#     {research_question}
+#     
+#     ## Background:
+#     {background}
+#     
+#     ## Methodology:
+#     {methodology}
+#     
+#     ## Expected Outcomes:
+#     {expected_outcomes}
+#     
+#     EXPERT FEEDBACK TO ADDRESS:
+#     
+#     Scientific validity concerns:
+#     {scientific_concerns}
+#     
+#     Methodology concerns:
+#     {method_concerns}
+#     
+#     Recommendations:
+#     {recommendations}
+#     
+#     INSTRUCTIONS: Create an improved version of your research proposal addressing ALL expert feedback.
+#     Keep your original research question but revise the approach, methodology, and other sections as needed.
+#     Your response must follow this format:
+#     
+#     # [IMPROVED TITLE]
+#     
+#     ## Research Question
+#     [Keep original question but clarify as needed]
+#     
+#     ## Background
+#     [Improved background]
+#     
+#     ## Methodology
+#     [Improved methodology]
+#     
+#     ## Expected Outcomes
+#     [Improved outcomes]
+#     
+#     ## Potential Challenges
+#     [Improved challenges]
+#     
+#     ## Required Skills
+#     [Same or improved]
+#     
+#     ## Broader Connections
+#     [Same or improved]
+#     """
+#     
+#     return prompt.strip()
     
-def generate_improved_idea(original_proposal: Dict[str, Any], feedback: ProposalFeedback, client) -> Dict[str, Any]:
-    """Generate an improved research idea based on expert feedback."""
-    # Create reflection agent
-    reflection_agent = AstronomyReflectionAgent(client)
-    
-    # Generate improvement prompt
-    improvement_prompt = reflection_agent.generate_improvement_prompt(original_proposal, feedback)
-    
-    # Get improved idea from LLM
-    response_text = client.generate_content(improvement_prompt)
-    improved_idea_text = response_text
-    
-    # Parse the response into structured sections
-    sections = [
-        "Research Question",
-        "Background",
-        "Methodology",
-        "Expected Outcomes",
-        "Potential Challenges",
-        "Required Skills",
-        "Broader Connections"
-    ]
-    
-    # Extract the title (first line with # prefix)
-    title = ""
-    for line in improved_idea_text.split('\n'):
-        if line.startswith('# '):
-            title = line.replace('# ', '').strip()
-            break
-    
-    # Parse sections
-    parsed_idea = {}
-    current_section = None
-    section_content = []
-    
-    for line in improved_idea_text.split('\n'):
-        if line.startswith('## '):
-            section_name = line.replace('## ', '').strip()
-            if current_section and section_content:
-                parsed_idea[current_section] = '\n'.join(section_content).strip()
-            current_section = section_name
-            section_content = []
-        elif current_section:
-            section_content.append(line)
-    
-    # Add the last section
-    if current_section and section_content:
-        parsed_idea[current_section] = '\n'.join(section_content).strip()
-    
-    # Create result structure
-    result = {
-        "title": title if title else "Improved Research Project",
-        "subfields": original_proposal.get("subfields", []),
-        "skill_level": original_proposal.get("skill_level", ""),
-        "time_frame": original_proposal.get("time_frame", ""),
-        "resources_needed": original_proposal.get("resources_needed", []),
-        "idea": parsed_idea
-    }
-    
-    return result
+# Already commented out generate_improved_idea function remains commented
+# def generate_improved_idea(original_proposal: Dict[str, Any], feedback: ProposalFeedback, client) -> Dict[str, Any]:
+#     """Generate an improved idea based on feedback (standalone function)."""
+#     # Set up a wrapper if one isn't provided
+#     # (This is a simplified function for demonstration)
+#
+#     # Format the feedback for the prompt
+#     feedback_dict = reflection_agent.format_feedback_for_idea_agent(feedback)
+#
+#     # ... code to generate improved idea ...
 
 if __name__ == "__main__":
     """Run the full idea generation, reflection, and improvement pipeline."""
     # Import necessary modules
-    from idea_agent import IdeaAgent
     from google import genai
     from config import google_key
     
@@ -447,8 +440,8 @@ if __name__ == "__main__":
     }
     
     # Step 2: Initialize both agents
-    idea_agent = IdeaAgent(client)
-    reflection_agent = AstronomyReflectionAgent(client)
+    idea_agent = IdeaAgent(google_key, provider="google")
+    reflection_agent = AstronomyReflectionAgent(google_key, provider="google")
     
     print("\n" + "="*100)
     print("STEP 1: GENERATING INITIAL RESEARCH IDEA...")

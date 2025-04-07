@@ -14,7 +14,7 @@ nest_asyncio.apply()
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-from idea_agent import IdeaAgent, generate_research_idea, generate_multiple_ideas
+from idea_agent import IdeaAgent
 from subfields import ASTRONOMY_SUBFIELDS, AstronomySubfield
 from reflection_agent import AstronomyReflectionAgent, ProposalFeedback, generate_improved_idea
 from literature_agent import LiteratureAgent  # Import the new LiteratureAgent
@@ -29,13 +29,13 @@ except ImportError:
 from llm_client import LLMClient
 
 # Create the standalone functions if needed
-def generate_research_idea(api_key, **kwargs):
-    provider = kwargs.pop('provider', 'azure')  # Get provider with default to Azure
-    # Validate that provider is one of the supported options
-    if provider not in ["azure", "google", "claude"]:
-        raise ValueError(f"Unsupported provider: {provider}")
-    agent = IdeaAgent(api_key, provider=provider)
-    return agent.generate_initial_idea(**kwargs)
+# def generate_research_idea(api_key, **kwargs):
+#     """Generate a research idea using the IdeaAgent.
+#     
+#     This is a wrapper function that handles agent creation.
+#     """
+#     agent = IdeaAgent(api_key=api_key, provider=st.session_state.provider)
+#     return agent.generate_initial_idea(**kwargs)
 
 def initialize_session_state():
     """Initialize session state variables if they don't exist"""
@@ -534,10 +534,10 @@ def main():
             # Astronomy interests
             st.subheader("Research Interests")
             
-            # Check if ASTRONOMY_SUBFIELDS is available and not empty
+            # Get available astronomy subfields
             if not ASTRONOMY_SUBFIELDS:
-                st.error("No astronomy subfields found. Check your idea_agent.py file.")
-                st.stop()
+                st.error("No astronomy subfields found. Check your idea_agent_twocalls.py file.")
+                return
             
             # Create checkboxes for each subfield using unique keys
             for subfield in ASTRONOMY_SUBFIELDS:
@@ -761,17 +761,31 @@ def main():
                 version_tag = f"v{st.session_state.improved_idea.get('version', '1')}" if 'version' in st.session_state.improved_idea else "research_idea"
                 filename = f"astronomy_full_process_{version_tag}.json"
                 
+                # Create a unique identifier for the buttons using more information
+                # Use hash of the title combined with version and a timestamp to ensure uniqueness
+                import hashlib
+                import time
+                title_hash = hashlib.md5(st.session_state.improved_idea.get("title", "unnamed").encode()).hexdigest()[:8]
+                unique_id = f"{title_hash}_{version_tag}_{int(time.time() * 1000) % 10000}"
+                
                 # Create direct download button for the log file
                 st.download_button(
                     label="📥 Download Log",
                     data=json_data,
                     file_name=filename,
                     mime="application/json",
-                    key="download_json"
+                    key=f"download_json_{unique_id}"
                 )
             else:
                 # Show disabled button (visual only)
-                st.button("📥 Download Log", disabled=True, key="download_log_btn_disabled")
+                # Generate unique_id even for the disabled button
+                import hashlib
+                import time
+                title_hash = hashlib.md5("disabled".encode()).hexdigest()[:8]
+                version_tag = "disabled"
+                unique_id = f"{title_hash}_{version_tag}_{int(time.time() * 1000) % 10000}"
+                
+                st.button("📥 Download Log", disabled=True, key=f"download_log_btn_disabled_{unique_id}")
         
         with fb_col2:
             # Simple email link - always available
@@ -1046,7 +1060,15 @@ def display_research_idea(idea, is_user_improved=False):
     
     # Add export options
     version_tag = f"v{idea.get('version', '1')}" if 'version' in idea else "research_idea"
-    if st.button(f"Export as JSON", key=f"export_{idea.get('title', '')[:10]}_{version_tag}"):
+    
+    # Create a unique identifier for the buttons using more information
+    # Use hash of the title combined with version and a timestamp to ensure uniqueness
+    import hashlib
+    import time
+    title_hash = hashlib.md5(idea.get("title", "unnamed").encode()).hexdigest()[:8]
+    unique_id = f"{title_hash}_{version_tag}_{int(time.time() * 1000) % 10000}"
+    
+    if st.button(f"Export as JSON", key=f"export_json_{unique_id}"):
         st.download_button(
             label="Download JSON",
             data=json.dumps(idea, indent=2),
@@ -1055,7 +1077,7 @@ def display_research_idea(idea, is_user_improved=False):
         )
     
     # Add button to export the full process
-    if st.button(f"Export Full Process", key=f"export_process_{idea.get('title', '')[:10]}_{version_tag}"):
+    if st.button(f"Export Full Process", key=f"export_process_{unique_id}"):
         # Create a comprehensive export that includes the development process
         export_data = {
             "final_idea": idea,

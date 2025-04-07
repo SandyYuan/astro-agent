@@ -586,48 +586,39 @@ class LiteratureAgent:
         )
     
     def format_feedback_for_idea_agent(self, feedback: LiteratureFeedback) -> Dict[str, Any]:
-        """Format literature feedback for the idea agent"""
-        # This is now returning a dictionary for better integration with the idea agent
+        """Format feedback for consumption by the idea agent."""
+        # Prepare the literature insights for the idea agent
         return {
-            "literature_review": {
-                "similar_papers": feedback.similar_papers,
-                "novelty_assessment": feedback.novelty_assessment,
-                "differentiation_suggestions": feedback.differentiation_suggestions,
-                "emerging_trends": feedback.emerging_trends,
-                "novelty_score": feedback.novelty_score,
-                "recommended_improvements": feedback.recommended_improvements,
-                "summary": feedback.summary
-            }
+            "literature_review": feedback.to_dict() if hasattr(feedback, "to_dict") else feedback.__dict__
         }
     
-    def format_feedback_for_display(self, feedback: LiteratureFeedback) -> str:
-        """Format literature feedback for display in the UI"""
-        result = "# LITERATURE REVIEW FEEDBACK\n\n"
-        
-        result += f"## NOVELTY ASSESSMENT (Score: {feedback.novelty_score}/10)\n"
-        result += f"{feedback.novelty_assessment}\n\n"
-        
-        result += "## SIMILAR RECENT PAPERS\n"
-        if feedback.similar_papers:
-            for i, paper in enumerate(feedback.similar_papers, 1):
-                result += f"{i}. **{paper['title']}** by {paper['authors']} ({paper['year']})\n"
-                if paper.get('arxiv_id'):
-                    result += f"   ArXiv ID: {paper['arxiv_id']}\n"
-                if paper.get('url'):
-                    result += f"   URL: {paper['url']}\n"
-                result += f"   Abstract: {paper['summary']}\n"
-                result += f"   Relevance: {paper['relevance']}\n\n"
-        else:
-            result += "No similar papers were found in our search of recent literature.\n\n"
-        
-        result += "## INNOVATION OPPORTUNITIES\n"
-        for i, suggestion in enumerate(feedback.differentiation_suggestions, 1):
-            result += f"{i}. {suggestion}\n"
-        
-        result += f"\n## EMERGING RESEARCH TRENDS\n{feedback.emerging_trends}\n"
-        
-        result += "\n## KEY RECOMMENDATIONS FOR IMPROVING NOVELTY\n"
-        for i, rec in enumerate(feedback.recommended_improvements, 1):
-            result += f"{i}. {rec}\n"
-        
-        return result
+# Commented out unused function
+# def format_feedback_for_display(self, feedback: LiteratureFeedback) -> str:
+#     """Format literature feedback for display to the user."""
+#     result = "# LITERATURE REVIEW\n\n"
+#     
+#     # Add novelty score and assessment
+#     result += f"## Novelty Assessment (Score: {feedback.novelty_score}/10)\n"
+#     result += f"{feedback.novelty_assessment}\n\n"
+#     
+#     # Add similar papers
+#     result += "## Similar Recent Papers\n"
+#     for i, paper in enumerate(feedback.similar_papers[:3], 1):
+#         title = paper.get("title", "Unknown Title")
+#         authors = paper.get("authors", "Unknown Authors")
+#         year = paper.get("year", "Unknown Year") 
+#         relevance = paper.get("relevance", "")
+#         
+#         result += f"{i}. **{title}** by {authors} ({year})\n"
+#         if relevance:
+#             result += f"   *Relevance: {relevance}*\n"
+#     
+#     # Add recommendations
+#     result += "\n## Key Innovation Recommendations\n"
+#     for rec in feedback.recommended_improvements:
+#         result += f"- {rec}\n"
+#     
+#     # Add emerging trends
+#     result += f"\n## Emerging Research Trends\n{feedback.emerging_trends}\n"
+#     
+#     return result
