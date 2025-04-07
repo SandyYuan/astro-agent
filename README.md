@@ -6,6 +6,8 @@ An AI-powered application that helps astronomy students generate, evaluate, and 
 
 This application uses a pipeline of specialized AI agents to create detailed, scientifically accurate astronomy research proposals. The system guides users through selecting their astronomy interests, skill level, and resources, then generates personalized research ideas that are both novel and feasible.
 
+> **Recommendation**: We recommend using Google Gemini as the LLM backbone for this application. It offers powerful capabilities and is available for free with generous usage limits.
+
 ## Key Features
 
 - **Personalized Research Idea Generation**: Creates astronomy research ideas tailored to the user's specific interests, skill level, time frame, and available resources
@@ -28,7 +30,14 @@ The application consists of three primary AI agents:
 ### Prerequisites
 
 - Python 3.8+
-- An API key for Azure OpenAI or another supported LLM provider
+- A Google Gemini API key (recommended) or other supported LLM provider
+
+### Getting a Google Gemini API Key
+
+1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Sign in with your Google account
+3. Click "Create API Key" and follow the instructions
+4. Your API key will be displayed - save it securely for use with this application
 
 ### Installation
 
@@ -47,7 +56,7 @@ pip install -r requirements.txt
    - Create a `secrets.toml` file in the `.streamlit` directory
    - Add your API keys, for example:
    ```
-   AZURE_OPENAI_API_KEY = "your-azure-openai-api-key"
+   GOOGLE_GEMINI_API_KEY = "your-gemini-api-key"
    ```
 
 ### Running the Application
@@ -118,6 +127,14 @@ The `LiteratureAgent` reviews recent astronomy literature by:
 - Providing a novelty assessment
 - Suggesting ways to differentiate the research
 - Identifying emerging trends in the field
+
+## Supporting LLM Providers
+
+While we recommend Google Gemini, the application supports multiple LLM providers:
+
+- **Google Gemini** (Recommended): Free with generous usage limits and excellent scientific reasoning
+- Azure OpenAI Service
+- Anthropic Claude (via API)
 
 ## Contributing
 
