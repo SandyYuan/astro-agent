@@ -22,16 +22,6 @@ try:
 except ImportError:
     genai = None
 
-# Import the LLMClient wrapper
-
-# Create the standalone functions if needed
-# def generate_research_idea(api_key, **kwargs):
-#     """Generate a research idea using the IdeaAgent.
-#     
-#     This is a wrapper function that handles agent creation.
-#     """
-#     agent = IdeaAgent(api_key=api_key, provider=st.session_state.provider)
-#     return agent.generate_initial_idea(**kwargs)
 
 def initialize_session_state():
     """Initialize session state variables if they don't exist"""
