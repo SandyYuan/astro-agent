@@ -1,76 +1,128 @@
-# 🔭 Astronomy Research Idea Generator
+# Astronomy Research Idea Generator
 
-Generate, evaluate, and refine research proposals.
+An AI-powered application that helps astronomy students generate, evaluate, and refine research ideas tailored to their interests, skill level, and available resources.
 
-## About
+## Overview
 
-The Astronomy Research Idea Generator is designed to assist astronomy students and researchers at all skill levels in developing scientifically sound, novel, and feasible research projects. The system uses a multi-agent AI approach to:
+This application uses a pipeline of specialized AI agents to create detailed, scientifically accurate astronomy research proposals. The system guides users through selecting their astronomy interests, skill level, and resources, then generates personalized research ideas that are both novel and feasible.
 
-1. Generate tailored research ideas based on student interests, skill level, and available resources
-2. Review recent scientific literature to assess novelty and identify emerging trends
-3. Provide expert-level feedback on scientific validity and methodology
-4. Refine the initial idea to address feedback and improve quality
+## Key Features
 
-The system supports multiple AI model providers including Azure OpenAI, Google Gemini, and Claude.
+- **Personalized Research Idea Generation**: Creates astronomy research ideas tailored to the user's specific interests, skill level, time frame, and available resources
+- **Scientific Evaluation**: Expert AI agent reviews the proposed idea and provides detailed feedback on scientific validity, methodology, novelty, and feasibility
+- **Literature Review**: Searches recent arXiv papers to assess the novelty of the idea and identify relevant existing research
+- **Idea Refinement**: Improves the initial research idea based on expert feedback and literature review
+- **User Feedback Integration**: Allows users to provide feedback on the generated idea and receive a refined version
+- **Comprehensive Documentation**: Provides detailed research proposals with background, methodology, expected outcomes, and more
 
-## Setup
+## System Architecture
 
-### Required API Keys
+The application consists of three primary AI agents:
 
-1. **AI Model Provider API Key**:
-   - For Azure OpenAI: Get an API key from the Azure OpenAI service
-   - For Google Gemini: Get an API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-   - For Claude: Get an API key from [Anthropic](https://console.anthropic.com/)
+1. **Idea Agent**: Generates initial research ideas and refines them based on feedback
+2. **Reflection Agent**: Evaluates research ideas and provides detailed expert feedback
+3. **Literature Agent**: Conducts literature searches and analyzes the novelty of proposed ideas
 
-2. **Google Custom Search API Setup** (for literature search):
-   - Create a Google Cloud project at [Google Cloud Console](https://console.cloud.google.com/)
-   - Enable the "Custom Search API" in the Google Cloud Console
-   - Create API credentials to get a Google API key
-   - Create a Custom Search Engine at [Google Programmable Search Engine](https://programmablesearchengine.google.com/):
-     - Add astronomy-related sites like arxiv.org, adsabs.harvard.edu, nature.com, science.org
-     - Get your Search Engine ID (cx)
-   - Set the following environment variables:
-     ```
-     GOOGLE_API_KEY=your_google_api_key
-     GOOGLE_CSE_ID=your_custom_search_engine_id
-     ```
+## Setup Instructions
 
-## Usage
+### Prerequisites
 
-1. Enter your chosen AI model provider API key when prompted
+- Python 3.8+
+- An API key for Azure OpenAI or another supported LLM provider
 
-2. Configure your research profile:
-   - Select astronomy subfields of interest
-   - Specify your skill level (beginner, intermediate, advanced)
-   - Set the research timeframe
-   - Select available resources
-   - Add any additional context about your background or interests
+### Installation
 
-3. Click "Generate Research Idea" to start the process
+1. Clone this repository
+```bash
+git clone https://github.com/your-username/astronomy-idea-generator.git
+cd astronomy-idea-generator
+```
 
-4. Review the refined research idea and optionally explore the development process
+2. Install the required dependencies
+```bash
+pip install -r requirements.txt
+```
 
-## Dependencies
+3. Set up your API keys
+   - Create a `secrets.toml` file in the `.streamlit` directory
+   - Add your API keys, for example:
+   ```
+   AZURE_OPENAI_API_KEY = "your-azure-openai-api-key"
+   ```
 
-- streamlit
-- google-genai
-- anthropic
-- langchain-openai
-- openai
-- requests
-- arxiv
-- nest_asyncio
-- python-dotenv
+### Running the Application
+
+Launch the Streamlit app:
+```bash
+streamlit run app.py
+```
+
+## Using the Application
+
+1. **Select Research Parameters**:
+   - Choose astronomy subfields of interest
+   - Select your skill level
+   - Specify your time frame
+   - Choose available resources
+
+2. **Generate Initial Idea**:
+   - The system creates a detailed research proposal tailored to your specifications
+
+3. **Review Expert Feedback**:
+   - Expert analysis of scientific validity and methodology
+   - Suggestions for improvement
+
+4. **Literature Review**:
+   - Analysis of recent papers in the field
+   - Assessment of your idea's novelty
+   - Recommendations for differentiation
+
+5. **Improved Research Idea**:
+   - The system generates a refined version that addresses feedback
+   - Compare the original and improved versions
+
+6. **User Feedback (Optional)**:
+   - Provide your own feedback on the idea
+   - Receive a further improved version based on your input
+
+7. **Export Results**:
+   - Download the full research proposal as JSON
+   - Save the development process for reference
+
+## Implementation Details
+
+### IdeaAgent
+
+The `IdeaAgent` is responsible for generating and improving research ideas. It creates detailed, structured astronomy research proposals by:
+
+- Identifying relevant astronomy subfields based on user interests
+- Selecting appropriate challenges and concepts
+- Generating a comprehensive research proposal with all required sections
+- Refining the proposal based on expert feedback and literature analysis
+
+### ReflectionAgent
+
+The `ReflectionAgent` evaluates research proposals with the expertise of an astronomy professor, providing:
+
+- Assessment of scientific validity and accuracy
+- Analysis of methodological soundness
+- Evaluation of novelty and knowledge gaps
+- Recommendations for improvement
+
+### LiteratureAgent
+
+The `LiteratureAgent` reviews recent astronomy literature by:
+
+- Searching for relevant papers on arXiv
+- Analyzing how the proposal relates to existing research
+- Providing a novelty assessment
+- Suggesting ways to differentiate the research
+- Identifying emerging trends in the field
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions to improve the astronomy research idea generator are welcome. Please feel free to submit issues or pull requests.
 
 ## License
 
-TBD
-
-## Acknowledgments
-
-- This project uses multiple AI models including Azure OpenAI, Google Gemini, and Claude
-- Google Custom Search API for literature search capabilities
+[MIT License](LICENSE)
