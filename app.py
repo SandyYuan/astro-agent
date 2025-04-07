@@ -2,9 +2,6 @@ import streamlit as st
 import json
 import asyncio
 import nest_asyncio
-import os
-import time
-from typing import Dict, Any, List, Optional
 
 
 # Apply nest_asyncio to allow nested event loops
@@ -15,8 +12,8 @@ loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
 from idea_agent import IdeaAgent
-from subfields import ASTRONOMY_SUBFIELDS, AstronomySubfield
-from reflection_agent import AstronomyReflectionAgent, ProposalFeedback, generate_improved_idea
+from subfields import ASTRONOMY_SUBFIELDS
+from reflection_agent import AstronomyReflectionAgent
 from literature_agent import LiteratureAgent  # Import the new LiteratureAgent
 
 # Import Google GenAI for backward compatibility
@@ -26,7 +23,6 @@ except ImportError:
     genai = None
 
 # Import the LLMClient wrapper
-from llm_client import LLMClient
 
 # Create the standalone functions if needed
 # def generate_research_idea(api_key, **kwargs):
