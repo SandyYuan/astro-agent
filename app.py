@@ -71,7 +71,7 @@ def initialize_session_state():
         st.session_state.literature_agent = None
     
     if 'provider' not in st.session_state:
-        st.session_state.provider = 'azure'
+        st.session_state.provider = 'google'
     
     if 'api_key' not in st.session_state:
         st.session_state.api_key = ''
