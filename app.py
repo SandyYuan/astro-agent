@@ -71,7 +71,7 @@ def initialize_session_state():
         st.session_state.literature_agent = None
     
     if 'provider' not in st.session_state:
-        st.session_state.provider = 'google'
+        st.session_state.provider = 'azure'
     
     if 'api_key' not in st.session_state:
         st.session_state.api_key = ''
@@ -208,7 +208,7 @@ def run_full_pipeline():
             st.session_state.literature_agent = LiteratureAgent(st.session_state.api_key, provider=st.session_state.provider)
         except Exception as e:
             st.error(f"Error initializing literature agent: {str(e)}")
-            return False
+        return False
 
     try:
         # Step 1: Generate initial idea with a timeout
@@ -473,7 +473,7 @@ def process_user_feedback():
         # Show detailed error in expandable section
         with st.expander("Error details"):
             st.write(str(e))
-
+    
 def main():
     st.set_page_config(
         page_title="Astronomy Research Idea Generator",
@@ -497,7 +497,7 @@ def main():
     
     # Create a title in a container with proper spacing
     with st.container():
-        st.title("🔭 Astronomy Research Idea Generator")
+    st.title("🔭 Astronomy Research Idea Generator")
     
     # Initialize session state
     initialize_session_state()
@@ -625,8 +625,8 @@ def main():
             st.header("Model Provider")
             provider = st.selectbox(
                 "Select AI Model Provider",
-                options=["google-gemini-2.0-thinking", "openai-gpt-o1", "claude-3-7-sonnet"],
-                index=0 if st.session_state.provider == "google" else (1 if st.session_state.provider == "azure" else 2),
+                options=["openai-gpt-o1", "google-gemini-2.0-thinking", "claude-3-7-sonnet"],
+                index=0 if st.session_state.provider == "azure" else (1 if st.session_state.provider == "google" else 2),
                 key="provider_selection"
             )
             
@@ -1003,7 +1003,7 @@ def display_research_idea(idea, is_user_improved=False):
     if not idea or not isinstance(idea, dict):
         st.error("Invalid research idea format")
         return
-    
+        
     # Display title
     st.header(idea.get("title", "Research Idea"))
     
@@ -1061,7 +1061,7 @@ def display_research_idea(idea, is_user_improved=False):
             file_name=f"astronomy_{version_tag}.json",
             mime="application/json"
         )
-    
+
     # Add button to export the full process
     if st.button(f"Export Full Process", key=f"export_process_{unique_id}"):
         # Create a comprehensive export that includes the development process
@@ -1161,7 +1161,7 @@ def display_literature_review(literature_feedback):
     if hasattr(literature_feedback, 'differentiation_suggestions') and literature_feedback.differentiation_suggestions:
         st.subheader("Differentiation Suggestions")
         for i, suggestion in enumerate(literature_feedback.differentiation_suggestions, 1):
-            st.write(f"{i}. {suggestion}")
+                st.write(f"{i}. {suggestion}")
     
     # Display emerging trends
     if hasattr(literature_feedback, 'emerging_trends') and literature_feedback.emerging_trends:
