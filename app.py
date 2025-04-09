@@ -497,7 +497,7 @@ def main():
     
     # Create a title in a container with proper spacing
     with st.container():
-    st.title("🔭 Astronomy Research Idea Generator")
+        st.title("🔭 Astronomy Research Idea Generator")
     
     # Initialize session state
     initialize_session_state()
