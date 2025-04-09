@@ -71,7 +71,7 @@ def initialize_session_state():
         st.session_state.literature_agent = None
     
     if 'provider' not in st.session_state:
-        st.session_state.provider = 'azure'
+        st.session_state.provider = 'google'
     
     if 'api_key' not in st.session_state:
         st.session_state.api_key = ''
@@ -625,8 +625,8 @@ def main():
             st.header("Model Provider")
             provider = st.selectbox(
                 "Select AI Model Provider",
-                options=["openai-gpt-o1", "google-gemini-2.0-thinking", "claude-3-7-sonnet"],
-                index=0 if st.session_state.provider == "azure" else (1 if st.session_state.provider == "google" else 2),
+                options=["google-gemini-2.0-thinking", "openai-gpt-o1", "claude-3-7-sonnet"],
+                index=0 if st.session_state.provider == "google" else (1 if st.session_state.provider == "azure" else 2),
                 key="provider_selection"
             )
             
