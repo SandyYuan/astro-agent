@@ -292,8 +292,22 @@ def display_literature_review(feedback: LiteratureFeedback):
         with tabs[0]:
             if feedback.similar_papers:
                 for paper in feedback.similar_papers:
-                    st.markdown(f"- **[{paper.get('title')}]({paper.get('url')})** ({paper.get('year')})")
-                    st.caption(f"Authors: {paper.get('authors')}")
+                    title = paper.get('title', 'N/A')
+                    url = paper.get('url', '#')
+                    year = paper.get('year', 'N/A')
+                    authors_str = paper.get('authors', '')
+                    
+                    author_display = "Unknown Author"
+                    if authors_str:
+                        author_list = [author.strip() for author in authors_str.split(',')]
+                        if author_list:
+                            first_author = author_list[0]
+                            if len(author_list) > 1:
+                                author_display = f"{first_author} et al."
+                            else:
+                                author_display = first_author
+                    
+                    st.markdown(f"- **[{title}]({url})** ({author_display} {year})")
             else:
                 st.info("No directly similar papers were found, which may indicate a highly novel area!")
         with tabs[1]:
