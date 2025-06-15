@@ -59,9 +59,12 @@ def initialize_session_state():
     
     if 'skip_literature_review' not in st.session_state:
         st.session_state.skip_literature_review = False
+        
+    if 'app_mode' not in st.session_state:
+        st.session_state.app_mode = 'iteration' # 'iteration' or 'generation'
 
 
-def reset_state():
+def reset_state(mode='iteration'):
     """Reset chat session state."""
     # Keep API key and provider
     api_key = st.session_state.api_key
@@ -74,6 +77,7 @@ def reset_state():
     st.session_state.skill_level = 'undergraduate'
     st.session_state.time_frame = '1 year'
     st.session_state.skip_literature_review = False
+    st.session_state.app_mode = mode
     
     # Restore API key and provider
     st.session_state.api_key = api_key
@@ -134,7 +138,7 @@ def toggle_literature_review():
     st.session_state.skip_literature_review = st.session_state.skip_lit_review_checkbox
 
 
-def run_refinement_pipeline(user_idea: str) -> tuple[Optional[Dict], Optional[LiteratureFeedback], Optional[ProposalFeedback]]:
+def run_refinement_pipeline(user_idea: str) -> tuple[Optional[Dict], Optional[LiteratureFeedback], Optional[ProposalFeedback], Optional[Dict]]:
     """
     Runs the full refinement pipeline and returns the structured data.
     """
@@ -146,27 +150,16 @@ def run_refinement_pipeline(user_idea: str) -> tuple[Optional[Dict], Optional[Li
     if not st.session_state.literature_agent and not st.session_state.skip_literature_review:
         st.session_state.literature_agent = LiteratureAgent(st.session_state.api_key, provider=st.session_state.provider)
 
-    additional_context = (
-        f"The user's skill level is '{st.session_state.skill_level}', "
-        f"they have a time frame of '{st.session_state.time_frame}', "
-        f"and access to the following resources: {', '.join(st.session_state.resources)}."
-    )
-
-    structured_idea, literature_feedback, reflection = None, None, None
+    structured_idea, literature_feedback, reflection, improved_idea = None, None, None, None
 
     try:
         with st.spinner("Step 1: Structuring your idea..."):
             structured_idea = st.session_state.idea_agent.structure_and_rephrase_idea(
-                user_idea=user_idea,
-                student_interests=st.session_state.interests,
-                skill_level=st.session_state.skill_level,
-                time_frame=st.session_state.time_frame,
-                available_resources=st.session_state.resources,
-                additional_context=additional_context
+                user_idea=user_idea
             )
-            if not structured_idea:
+            if not structured_idea or "error" in structured_idea:
                 st.error("Could not structure the idea.")
-                return None, None, None
+                return None, None, None, None
 
         if not st.session_state.skip_literature_review:
             with st.spinner("Step 2: Reviewing existing literature on arXiv..."):
@@ -178,12 +171,71 @@ def run_refinement_pipeline(user_idea: str) -> tuple[Optional[Dict], Optional[Li
             reflection = st.session_state.reflection_agent.provide_feedback(
                 research_proposal=structured_idea
             )
+        
+        with st.spinner("Step 4: Generating improved proposal..."):
+            if reflection:
+                improved_idea = st.session_state.idea_agent.improve_idea(
+                    reflection_feedback=asdict(reflection),
+                    literature_feedback=asdict(literature_feedback) if literature_feedback else None
+                )
 
-        return structured_idea, literature_feedback, reflection
+
+        return structured_idea, literature_feedback, reflection, improved_idea
 
     except Exception as e:
         st.error(f"An error occurred during the refinement process: {e}")
-        return None, None, None
+        return None, None, None, None
+
+
+def run_generation_pipeline() -> tuple[Optional[Dict], Optional[LiteratureFeedback], Optional[ProposalFeedback], Optional[Dict]]:
+    """
+    Runs the full idea generation pipeline from scratch.
+    """
+    # Ensure agents are initialized
+    if not st.session_state.idea_agent:
+        st.session_state.idea_agent = IdeaAgent(st.session_state.api_key, provider=st.session_state.provider)
+    if not st.session_state.reflection_agent:
+        st.session_state.reflection_agent = AstronomyReflectionAgent(st.session_state.api_key, provider=st.session_state.provider)
+    if not st.session_state.literature_agent and not st.session_state.skip_literature_review:
+        st.session_state.literature_agent = LiteratureAgent(st.session_state.api_key, provider=st.session_state.provider)
+
+    structured_idea, literature_feedback, reflection, improved_idea = None, None, None, None
+
+    try:
+        with st.spinner("Step 1: Generating a new research idea..."):
+            structured_idea = st.session_state.idea_agent.generate_initial_idea(
+                student_interests=st.session_state.interests,
+                skill_level=st.session_state.skill_level,
+                time_frame=st.session_state.time_frame,
+                available_resources=st.session_state.resources,
+            )
+            if not structured_idea or "error" in structured_idea:
+                st.error("Could not generate an idea. Try adjusting the context in the sidebar.")
+                return None, None, None, None
+
+        if not st.session_state.skip_literature_review:
+            with st.spinner("Step 2: Reviewing existing literature on arXiv..."):
+                literature_feedback = st.session_state.literature_agent.run_arxiv_search(
+                    research_idea=structured_idea
+                )
+
+        with st.spinner("Step 3: Getting expert feedback..."):
+            reflection = st.session_state.reflection_agent.provide_feedback(
+                research_proposal=structured_idea
+            )
+            
+        with st.spinner("Step 4: Generating improved proposal..."):
+            if reflection:
+                improved_idea = st.session_state.idea_agent.improve_idea(
+                    reflection_feedback=asdict(reflection),
+                    literature_feedback=asdict(literature_feedback) if literature_feedback else None
+                )
+
+        return structured_idea, literature_feedback, reflection, improved_idea
+
+    except Exception as e:
+        st.error(f"An error occurred during the generation process: {e}")
+        return None, None, None, None
 
 
 def display_structured_idea(idea: Dict[str, Any]):
@@ -196,6 +248,23 @@ def display_structured_idea(idea: Dict[str, Any]):
         st.markdown(f"**Proposed Solution:** {idea_details.get('Proposed Solution', 'N/A')}")
 
         with st.expander("View Background & Expected Outcomes"):
+            st.markdown(f"**Background:** {idea_details.get('Background', 'N/A')}")
+            st.markdown(f"**Expected Outcomes:** {idea_details.get('Expected Outcomes', 'N/A')}")
+
+
+def display_improved_proposal(idea: Dict[str, Any]):
+    if not idea or "error" in idea:
+        return
+        
+    st.markdown("### 🚀 Improved Proposal")
+    with st.container(border=True):
+        st.markdown(f"**Title:** {idea.get('title', 'N/A')}")
+        
+        idea_details = idea.get('idea', {})
+        st.markdown(f"**Research Question:** {idea_details.get('Research Question', 'N/A')}")
+        st.markdown(f"**Proposed Solution:** {idea_details.get('Proposed Solution', 'N/A')}")
+
+        with st.expander("View Full Improved Proposal"):
             st.markdown(f"**Background:** {idea_details.get('Background', 'N/A')}")
             st.markdown(f"**Expected Outcomes:** {idea_details.get('Expected Outcomes', 'N/A')}")
 
@@ -262,7 +331,8 @@ def display_expert_feedback(feedback: ProposalFeedback):
 def format_response_for_history(
     structured_idea: Optional[Dict], 
     literature_feedback: Optional[LiteratureFeedback], 
-    reflection: Optional[ProposalFeedback]
+    reflection: Optional[ProposalFeedback],
+    improved_idea: Optional[Dict]
 ) -> str:
     """Formats the structured data into a single markdown string for chat history."""
     if not structured_idea:
@@ -276,6 +346,9 @@ def format_response_for_history(
 
     if reflection:
         history.append("### 🤔 Expert Feedback\n" + json.dumps(asdict(reflection), indent=2))
+        
+    if improved_idea:
+        history.append("### 🚀 Improved Proposal\n" + json.dumps(improved_idea, indent=2))
         
     return "\n\n---\n\n".join(history)
 
@@ -311,11 +384,17 @@ def main():
             value=st.session_state.api_key
         )
 
-        if st.button("Start New Chat"):
-            reset_state()
-            st.rerun()
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🧠 I have an idea"):
+                reset_state(mode='iteration')
+                st.rerun()
+        with col2:
+            if st.button("💀 Let AI take over"):
+                reset_state(mode='generation')
+                st.rerun()
 
-        st.header("Research Context (Optional)")
+        st.header("Research Context (For AI Generation)")
         
         st.session_state.skill_level = st.select_slider(
             "Your Skill Level",
@@ -351,32 +430,64 @@ def main():
         st.info("Please enter your API key in the sidebar to begin.")
         return
 
-    # Display chat messages
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    if st.session_state.app_mode == 'iteration':
+        # --- Main Chat Interface ---
+        st.info("You are in **Idea Iteration** mode. Enter your research idea below to begin the refinement process.")
+        
+        # Display chat messages
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                # This is a simplification; for a real app, you'd want to re-render the rich display
+                st.markdown(message["content"])
 
-    # Chat input
-    if prompt := st.chat_input("Enter your research idea or question here..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+        # Chat input
+        if prompt := st.chat_input("Enter your research idea or question here..."):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
 
-        with st.chat_message("assistant"):
-            structured_idea, literature_feedback, reflection = run_refinement_pipeline(prompt)
-            
-            if structured_idea:
-                display_structured_idea(structured_idea)
-                display_literature_review(literature_feedback)
-                display_expert_feedback(reflection)
+            with st.chat_message("assistant"):
+                structured_idea, literature_feedback, reflection, improved_idea = run_refinement_pipeline(prompt)
                 
-                # Format the complete response for storage in history
-                history_content = format_response_for_history(structured_idea, literature_feedback, reflection)
-                st.session_state.messages.append({"role": "assistant", "content": history_content})
-            else:
-                error_message = "I'm sorry, I encountered an error and couldn't process your request. Please try rephrasing your idea or check the application logs."
-                st.error(error_message)
-                st.session_state.messages.append({"role": "assistant", "content": error_message})
+                if structured_idea:
+                    display_structured_idea(structured_idea)
+                    st.markdown("---")
+                    display_literature_review(literature_feedback)
+                    display_expert_feedback(reflection)
+                    st.markdown("---")
+                    display_improved_proposal(improved_idea)
+                    
+                    # Format the complete response for storage in history
+                    history_content = format_response_for_history(structured_idea, literature_feedback, reflection, improved_idea)
+                    st.session_state.messages.append({"role": "assistant", "content": history_content})
+                else:
+                    error_message = "I'm sorry, I encountered an error and couldn't process your request. Please try rephrasing your idea or check the application logs."
+                    st.error(error_message)
+                    st.session_state.messages.append({"role": "assistant", "content": error_message})
+    
+    elif st.session_state.app_mode == 'generation':
+        st.info("You are in **Idea Generation** mode. Use the sidebar to set your research context and click the button below.")
+        
+        if st.button("✨ Generate a New Research Idea", use_container_width=True):
+            with st.chat_message("assistant"):
+                structured_idea, literature_feedback, reflection, improved_idea = run_generation_pipeline()
+                
+                if structured_idea:
+                    display_structured_idea(structured_idea)
+                    st.markdown("---")
+                    display_literature_review(literature_feedback)
+                    display_expert_feedback(reflection)
+                    st.markdown("---")
+                    display_improved_proposal(improved_idea)
+                    
+                    # Format the complete response for storage in history
+                    history_content = format_response_for_history(structured_idea, literature_feedback, reflection, improved_idea)
+                    st.session_state.messages.append({"role": "assistant", "content": history_content})
+                else:
+                    error_message = "I'm sorry, I encountered an error and couldn't generate an idea. Please try adjusting the context in the sidebar or try again."
+                    st.error(error_message)
+                    st.session_state.messages.append({"role": "assistant", "content": error_message})
+
 
 if __name__ == "__main__":
     main()
