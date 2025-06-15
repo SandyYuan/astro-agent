@@ -2,7 +2,8 @@ import streamlit as st
 import json
 import asyncio
 import nest_asyncio
-from dataclasses import asdict
+from dataclasses import asdict, is_dataclass
+from typing import Dict, Any, Optional
 
 
 # Apply nest_asyncio to allow nested event loops
@@ -14,8 +15,8 @@ asyncio.set_event_loop(loop)
 
 from idea_agent import IdeaAgent
 from subfields import ASTRONOMY_SUBFIELDS
-from reflection_agent import AstronomyReflectionAgent
-from literature_agent import LiteratureAgent  # Import the new LiteratureAgent
+from reflection_agent import AstronomyReflectionAgent, ProposalFeedback
+from literature_agent import LiteratureAgent, LiteratureFeedback
 
 # Import Google GenAI for backward compatibility
 try:
@@ -133,9 +134,9 @@ def toggle_literature_review():
     st.session_state.skip_literature_review = st.session_state.skip_lit_review_checkbox
 
 
-def run_refinement_pipeline(user_idea: str):
+def run_refinement_pipeline(user_idea: str) -> tuple[Optional[Dict], Optional[LiteratureFeedback], Optional[ProposalFeedback]]:
     """
-    Runs the full refinement pipeline: rephrase, literature review, and reflection.
+    Runs the full refinement pipeline and returns the structured data.
     """
     # Ensure agents are initialized
     if not st.session_state.idea_agent:
@@ -145,22 +146,16 @@ def run_refinement_pipeline(user_idea: str):
     if not st.session_state.literature_agent and not st.session_state.skip_literature_review:
         st.session_state.literature_agent = LiteratureAgent(st.session_state.api_key, provider=st.session_state.provider)
 
-    # Prepare context from sidebar
     additional_context = (
         f"The user's skill level is '{st.session_state.skill_level}', "
         f"they have a time frame of '{st.session_state.time_frame}', "
         f"and access to the following resources: {', '.join(st.session_state.resources)}."
     )
 
-    full_response = ""
-    structured_idea_response = ""
-    literature_feedback_response = ""
-    reflection_response = ""
+    structured_idea, literature_feedback, reflection = None, None, None
 
     try:
-        # Step 1: Rephrase and structure the idea
         with st.spinner("Step 1: Structuring your idea..."):
-            # This method will need to be created in IdeaAgent
             structured_idea = st.session_state.idea_agent.structure_and_rephrase_idea(
                 user_idea=user_idea,
                 student_interests=st.session_state.interests,
@@ -169,37 +164,116 @@ def run_refinement_pipeline(user_idea: str):
                 available_resources=st.session_state.resources,
                 additional_context=additional_context
             )
-            if structured_idea:
-                structured_idea_response = "### 💡 Structured Idea\n" + json.dumps(structured_idea, indent=2)
-                full_response += structured_idea_response + "\n\n---\n\n"
-            else:
+            if not structured_idea:
                 st.error("Could not structure the idea.")
-                return "I had trouble structuring your idea. Could you try rephrasing it?"
+                return None, None, None
 
-        # Step 2: Literature Review
         if not st.session_state.skip_literature_review:
             with st.spinner("Step 2: Reviewing existing literature on arXiv..."):
                 literature_feedback = st.session_state.literature_agent.run_arxiv_search(
                     research_idea=structured_idea
                 )
-                if literature_feedback:
-                    literature_feedback_response = "### 📚 Literature Review\n" + json.dumps(asdict(literature_feedback), indent=2)
-                    full_response += literature_feedback_response + "\n\n---\n\n"
 
-        # Step 3: Expert Reflection
         with st.spinner("Step 3: Getting expert feedback..."):
             reflection = st.session_state.reflection_agent.provide_feedback(
                 research_proposal=structured_idea
             )
-            if reflection:
-                reflection_response = "### 🤔 Expert Feedback\n" + json.dumps(asdict(reflection), indent=2)
-                full_response += reflection_response
 
-        return full_response
+        return structured_idea, literature_feedback, reflection
 
     except Exception as e:
         st.error(f"An error occurred during the refinement process: {e}")
-        return f"Sorry, an error occurred: {e}"
+        return None, None, None
+
+
+def display_structured_idea(idea: Dict[str, Any]):
+    st.markdown("### 💡 Structured Idea")
+    with st.container(border=True):
+        st.markdown(f"**Title:** {idea.get('title', 'N/A')}")
+        st.markdown(f"**Research Question:** {idea.get('idea', {}).get('Research Question', 'N/A')}")
+        with st.expander("View Details"):
+            st.markdown(f"**Background:** {idea.get('idea', {}).get('Background', 'N/A')}")
+            st.markdown(f"**Methodology:** {idea.get('idea', {}).get('Methodology', 'N/A')}")
+
+
+def display_literature_review(feedback: LiteratureFeedback):
+    if not feedback:
+        return
+    st.markdown("### 📚 Literature Review")
+    with st.expander("View Literature Analysis", expanded=True):
+        score = feedback.novelty_score or 0
+        st.metric("Novelty Score (out of 10)", f"{score:.1f}")
+        st.markdown(f"**Assessment:** {feedback.novelty_assessment}")
+
+        tabs = st.tabs(["Similar Papers", "Differentiation Suggestions", "Summary"])
+        with tabs[0]:
+            if feedback.similar_papers:
+                for paper in feedback.similar_papers:
+                    st.markdown(f"- **[{paper.get('title')}]({paper.get('url')})** ({paper.get('year')})")
+                    st.caption(f"Authors: {paper.get('authors')}")
+            else:
+                st.info("No directly similar papers were found, which may indicate a highly novel area!")
+        with tabs[1]:
+            for suggestion in feedback.differentiation_suggestions:
+                st.markdown(f"- {suggestion}")
+        with tabs[2]:
+            st.markdown(feedback.summary)
+
+
+def display_expert_feedback(feedback: ProposalFeedback):
+    if not feedback:
+        return
+    st.markdown("### 🤔 Expert Feedback")
+    with st.expander("View Expert Feedback", expanded=True):
+        st.markdown(f"**Summary:** {feedback.summary}")
+        st.markdown("**Key Recommendations:**")
+        for rec in feedback.recommendations:
+            if isinstance(rec, dict):
+                # Handle case where recommendation is a dict, e.g., {'recommendation': 'text'}
+                st.markdown(f"- {rec.get('recommendation', json.dumps(rec))}")
+            else:
+                # Handle case where it's a simple string
+                st.markdown(f"- {rec}")
+        
+        tabs = st.tabs(["Scientific Validity", "Methodology", "Feasibility & Impact"])
+        with tabs[0]:
+            st.markdown("**Strengths:**")
+            for strength in feedback.scientific_validity.get('strengths', []):
+                st.markdown(f"- {strength}")
+            st.markdown("**Concerns:**")
+            for concern in feedback.scientific_validity.get('concerns', []):
+                st.markdown(f"- {concern}")
+        with tabs[1]:
+            st.markdown("**Strengths:**")
+            for strength in feedback.methodology.get('strengths', []):
+                st.markdown(f"- {strength}")
+            st.markdown("**Concerns:**")
+            for concern in feedback.methodology.get('concerns', []):
+                st.markdown(f"- {concern}")
+        with tabs[2]:
+            st.markdown(f"**Impact:** {feedback.impact_assessment}")
+            st.markdown(f"**Feasibility:** {feedback.feasibility_assessment}")
+
+
+def format_response_for_history(
+    structured_idea: Optional[Dict], 
+    literature_feedback: Optional[LiteratureFeedback], 
+    reflection: Optional[ProposalFeedback]
+) -> str:
+    """Formats the structured data into a single markdown string for chat history."""
+    if not structured_idea:
+        return "Sorry, I was unable to process your idea."
+
+    history = []
+    history.append("### 💡 Structured Idea\n" + json.dumps(structured_idea, indent=2))
+    
+    if literature_feedback:
+        history.append("### 📚 Literature Review\n" + json.dumps(asdict(literature_feedback), indent=2))
+
+    if reflection:
+        history.append("### 🤔 Expert Feedback\n" + json.dumps(asdict(reflection), indent=2))
+        
+    return "\n\n---\n\n".join(history)
 
 
 def main():
@@ -285,10 +359,20 @@ def main():
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            # Run the pipeline and display the response
-            response = run_refinement_pipeline(prompt)
-            st.markdown(response)
-            st.session_state.messages.append({"role": "assistant", "content": response})
+            structured_idea, literature_feedback, reflection = run_refinement_pipeline(prompt)
+            
+            if structured_idea:
+                display_structured_idea(structured_idea)
+                display_literature_review(literature_feedback)
+                display_expert_feedback(reflection)
+                
+                # Format the complete response for storage in history
+                history_content = format_response_for_history(structured_idea, literature_feedback, reflection)
+                st.session_state.messages.append({"role": "assistant", "content": history_content})
+            else:
+                error_message = "I'm sorry, I encountered an error and couldn't process your request. Please try rephrasing your idea or check the application logs."
+                st.error(error_message)
+                st.session_state.messages.append({"role": "assistant", "content": error_message})
 
 if __name__ == "__main__":
     main()
