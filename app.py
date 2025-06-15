@@ -162,10 +162,15 @@ def run_refinement_pipeline(user_idea: str) -> tuple[Optional[Dict], Optional[Li
                 return None, None, None, None
 
         if not st.session_state.skip_literature_review:
-            with st.spinner("Step 2: Reviewing existing literature on arXiv..."):
-                literature_feedback = st.session_state.literature_agent.run_arxiv_search(
-                    research_idea=structured_idea
-                )
+            with st.spinner("Performing literature search..."):
+                try:
+                    literature_feedback = st.session_state.literature_agent.run_literature_search(
+                        structured_idea
+                    )
+                    st.session_state.literature_feedback = literature_feedback
+                except Exception as e:
+                    st.error(f"An error occurred during the literature search: {e}")
+                    return None, None, None, None
 
         with st.spinner("Step 3: Getting expert feedback..."):
             reflection = st.session_state.reflection_agent.provide_feedback(
@@ -214,10 +219,15 @@ def run_generation_pipeline() -> tuple[Optional[Dict], Optional[LiteratureFeedba
                 return None, None, None, None
 
         if not st.session_state.skip_literature_review:
-            with st.spinner("Step 2: Reviewing existing literature on arXiv..."):
-                literature_feedback = st.session_state.literature_agent.run_arxiv_search(
-                    research_idea=structured_idea
-                )
+            with st.spinner("Performing literature search..."):
+                try:
+                    literature_feedback = st.session_state.literature_agent.run_literature_search(
+                        structured_idea
+                    )
+                    st.session_state.literature_feedback = literature_feedback
+                except Exception as e:
+                    st.error(f"An error occurred during the literature search: {e}")
+                    return None, None, None, None
 
         with st.spinner("Step 3: Getting expert feedback..."):
             reflection = st.session_state.reflection_agent.provide_feedback(

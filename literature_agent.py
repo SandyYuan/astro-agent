@@ -1,7 +1,6 @@
 import os
 import re
 import json
-import arxiv
 import asyncio
 import nest_asyncio
 import datetime
@@ -47,58 +46,101 @@ class LiteratureAgent:
             self.llm_client = LLMClient(api_key, provider)
         except ValueError as e:
             raise ValueError(f"Error initializing literature agent: {str(e)}")
-        
-        # ArXiv categories relevant to astronomy
-        self.astronomy_categories = [
-            'astro-ph.GA',  # Galaxies and cosmology
-            'astro-ph.CO',  # Cosmology
-            'astro-ph.EP',  # Earth and planetary science
-            'astro-ph.HE',  # High-energy astrophysics
-            'astro-ph.IM',  # Instrumentation and methods
-            'astro-ph.SR',  # Solar and stellar astrophysics
-        ]
     
-    def run_arxiv_search(self, research_idea: Dict[str, Any], max_papers: int = 5) -> LiteratureFeedback:
+    def _simplify_query_with_llm(self, research_question: str) -> str:
+        """Uses an LLM to distill a research question into a keyword query."""
+        prompt = f"""
+        Distill the following astronomy research question into a concise search query of 4-6 keywords.
+        Focus on the most specific and relevant technical terms (objects, methods, phenomena).
+        Return only the space-separated keywords.
+
+        Research Question: "{research_question}"
+        
+        Search Query:
         """
-        Searches arXiv for relevant papers and generates a literature review.
+        try:
+            print("Simplifying query with LLM...")
+            simplified_query = self.llm_client.generate(prompt).strip()
+            print(f"Simplified query: {simplified_query}")
+            return simplified_query
+        except Exception as e:
+            print(f"Error simplifying query with LLM: {e}. Falling back to original query.")
+            return research_question
+
+    def _run_semantic_scholar_search(self, query: str, max_papers: int = 10) -> List[Dict[str, Any]]:
+        """Performs a direct API search on Semantic Scholar and returns a list of papers."""
+        try:
+            print(f"Searching Semantic Scholar via direct API for: {query}")
+            
+            api_url = "https://api.semanticscholar.org/graph/v1/paper/search"
+            
+            # Specify fields to fetch to speed up the query
+            fields_to_return = ['title', 'abstract', 'authors', 'year', 'publicationDate', 'url']
+            
+            params = {
+                'query': query,
+                'limit': max_papers,
+                'fields': ",".join(fields_to_return)
+            }
+            
+            headers = {'Accept': 'application/json'}
+
+            print(f"Querying Semantic Scholar API with a 30-second timeout...")
+            response = requests.get(api_url, params=params, headers=headers, timeout=30)
+            response.raise_for_status() # Will raise an exception for bad status codes
+            
+            results = response.json()
+            print("Search complete. Processing results...")
+            
+            papers = []
+            if 'data' in results:
+                for item in results['data']:
+                    papers.append({
+                        'title': item.get('title'),
+                        'authors': ", ".join(author['name'] for author in item.get('authors', [])),
+                        'summary': item.get('abstract') or 'N/A',
+                        'published': str(item.get('publicationDate')),
+                        'year': item.get('year'),
+                        'url': item.get('url'),
+                        'source': 'Semantic Scholar'
+                    })
+            print(f"Found {len(papers)} papers on Semantic Scholar.")
+            return papers
+            
+        except requests.exceptions.RequestException as e:
+            print(f"An error occurred during Semantic Scholar API request: {e}")
+            return []
+        except Exception as e:
+            print(f"An error occurred during Semantic Scholar search: {e}")
+            return []
+
+    def run_literature_search(self, research_idea: Dict[str, Any], max_papers: int = 10) -> LiteratureFeedback:
+        """
+        Searches Semantic Scholar for relevant papers and generates a literature review.
         """
         if not isinstance(research_idea, dict):
             raise ValueError("research_idea must be a dictionary.")
 
         title = research_idea.get("title", "")
         idea_details = research_idea.get("idea", {})
-        query = idea_details.get("Research Question", "") or title
+        original_query = idea_details.get("Research Question", "") or title
 
-        if not query:
+        if not original_query:
+            return self._create_basic_review([])
+        
+        # Simplify the query for better API results
+        search_query = self._simplify_query_with_llm(original_query)
+
+        # Run Semantic Scholar Search
+        all_papers = self._run_semantic_scholar_search(search_query, max_papers=max_papers)
+        
+        # Analyze results
+        if not all_papers:
+            print("No papers found from any source.")
             return self._create_basic_review([])
 
-        # Use the research question for a more targeted search
-        search_query = f'"{query}"'
-        
-        try:
-            search = arxiv.Search(
-                query=search_query,
-                max_results=max_papers,
-                sort_by=arxiv.SortCriterion.Relevance
-            )
-            
-            papers = []
-            for result in search.results():
-                papers.append({
-                    'title': result.title,
-                    'authors': ", ".join(author.name for author in result.authors),
-                    'summary': result.summary,
-                    'published': result.published.strftime('%Y-%m-%d'),
-                    'year': result.published.year,
-                    'url': result.entry_id,
-                    'source': 'ArXiv'
-                })
-            
-            return self._generate_literature_review(research_idea, papers)
-        
-        except Exception as e:
-            print(f"An error occurred during arXiv search: {e}")
-            return self._create_basic_review([])
+        print(f"Total papers found: {len(all_papers)}. Starting literature review...")
+        return self._generate_literature_review(research_idea, all_papers)
 
     def _generate_literature_review(self, idea: Dict[str, Any], papers: List[Dict[str, Any]]) -> LiteratureFeedback:
         """Generate a literature review using an LLM."""
@@ -232,27 +274,22 @@ Your response MUST be a single JSON object with the following structure. Do not 
 
 if __name__ == '__main__':
     async def main():
-        # Example Usage
-        api_key = os.environ.get("GOOGLE_API_KEY") # Replace with your actual key
+        api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("API key not found. Set the GOOGLE_API_KEY environment variable.")
         
         agent = LiteratureAgent(api_key, provider="google")
         
-        # Example idea
         example_idea = {
-            "title": "Searching for Technosignatures in the Galactic Center",
+            "title": "DESI ACT cross-correlaton to constrain galaxy-halo connection",
             "idea": {
-                "Research Question": "Can we detect anomalous narrowband signals from the Galactic Center using existing radio survey data?"
+                "Research Question": "Can we constrain the galaxy-halo connection by cross-correlating DESI and ACT data?"
             }
         }
         
-        # Run literature review
-        feedback = agent.run_arxiv_search(example_idea)
+        feedback = agent.run_literature_search(example_idea)
         
-        # Print results
         print("\n--- Literature Review Feedback ---")
         print(json.dumps(feedback.__dict__, indent=2, default=str))
 
-    # Run the async main function
     asyncio.run(main())
