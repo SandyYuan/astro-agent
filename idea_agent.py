@@ -70,7 +70,7 @@ You are an expert astronomy research advisor. A student has come to you with a r
 
 Based on the student's idea and context, please structure it into the following JSON format. Fill in each field by interpreting their request. If their idea is vague, make reasonable, scientifically-grounded inferences to fill out the sections, but clearly state that you are making an assumption.
 
-Your response MUST be a single JSON object.
+Your response MUST be a single JSON object. Do not include any text outside the JSON object.
 
 {{
   "title": "[Create a concise, descriptive title for the research project based on the user's idea]",
@@ -78,14 +78,11 @@ Your response MUST be a single JSON object.
   "skill_level": "{skill_level}",
   "time_frame": "{time_frame}",
   "idea": {{
-    "Research Question": "[Based on the user's idea, formulate a single, clear, and testable research question. If the user's idea is a statement, turn it into a question.]",
-    "Background": "[Provide 1-2 paragraphs of background context. Explain why the user's question is scientifically interesting and relevant. If possible, mention what makes it timely.]",
-    "Methodology": "[Propose a high-level, 2-3 step methodology appropriate for the skill level and resources. For example: 1. Data Acquisition (mentioning a plausible public dataset like SDSS, Gaia, TESS). 2. Analysis (mentioning a plausible technique like photometry, spectroscopy, or statistical analysis). 3. Interpretation.]",
-    "Expected Outcomes": "[Describe 2-3 potential, concrete outcomes from this research. What would be the tangible result? (e.g., a catalog of objects, a measurement of a parameter, a confirmation of a theory).]",
-    "Potential Challenges": "[List 1-2 key challenges the student might face (e.g., 'Data quality may be a concern', 'Distinguishing signal from noise could be difficult').]",
-    "Required Skills": "[List key skills needed, aligned with the methodology (e.g., 'Python programming (pandas, astropy)', 'Basic data analysis', 'Understanding of stellar evolution').]"
-  }},
-  "resources_needed": ["List the specific resources from the user's context that would be needed for this project."]
+    "Research Question": "[Based on the user's idea, formulate a single, clear, and testable research question.]",
+    "Proposed Solution": "[Provide a single, specific sentence describing the core method to answer the question. Be concrete about datasets and tools. Example: 'Analyze photometric data for quiescent galaxies from SDSS DR17 between redshift 0.1 and 0.2 using Python with Astropy to measure morphological properties.']",
+    "Background": "[Provide 1-2 paragraphs of background context. Explain why this question is scientifically interesting and relevant.]",
+    "Expected Outcomes": "[Describe 2-3 potential, concrete outcomes from this research. What would be the tangible result? (e.g., a catalog of objects, a measurement of a parameter, a confirmation of a theory).]"
+  }}
 }}
 """
         

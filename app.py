@@ -190,10 +190,14 @@ def display_structured_idea(idea: Dict[str, Any]):
     st.markdown("### 💡 Structured Idea")
     with st.container(border=True):
         st.markdown(f"**Title:** {idea.get('title', 'N/A')}")
-        st.markdown(f"**Research Question:** {idea.get('idea', {}).get('Research Question', 'N/A')}")
-        with st.expander("View Details"):
-            st.markdown(f"**Background:** {idea.get('idea', {}).get('Background', 'N/A')}")
-            st.markdown(f"**Methodology:** {idea.get('idea', {}).get('Methodology', 'N/A')}")
+        
+        idea_details = idea.get('idea', {})
+        st.markdown(f"**Research Question:** {idea_details.get('Research Question', 'N/A')}")
+        st.markdown(f"**Proposed Solution:** {idea_details.get('Proposed Solution', 'N/A')}")
+
+        with st.expander("View Background & Expected Outcomes"):
+            st.markdown(f"**Background:** {idea_details.get('Background', 'N/A')}")
+            st.markdown(f"**Expected Outcomes:** {idea_details.get('Expected Outcomes', 'N/A')}")
 
 
 def display_literature_review(feedback: LiteratureFeedback):
