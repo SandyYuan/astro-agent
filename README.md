@@ -1,63 +1,54 @@
-# Astronomy Research Idea Generator
+# AI Astronomy Research Assistant
 
-An AI-powered application that helps astronomy students generate, evaluate, and refine research ideas tailored to their interests, skill level, and available resources.
+An AI-powered application that helps astronomy students refine their research ideas through iterative feedback and analysis.
 
 ## Overview
 
-This application uses a pipeline of specialized AI agents to create detailed, scientifically accurate astronomy research proposals. The system guides users through selecting their astronomy interests, skill level, and resources, then generates personalized research ideas that are both novel and feasible.
+This application acts as an AI-powered partner for astronomy students, transforming rough or vague research concepts into structured, scientifically-grounded proposals. Instead of generating ideas from scratch, the assistant engages in a conversation with the user to collaboratively refine their initial thoughts.
 
-> **Recommendation**: We recommend using Google Gemini as the LLM backbone for this application. It offers powerful capabilities and is available for free with generous usage limits.
+The user starts by providing an idea in a chat interface. The system then uses a pipeline of specialized AI agents to analyze the concept, review relevant literature, provide expert feedback, and present a more formalized version back to the user. This iterative process allows students to strengthen their ideas in a dynamic, conversational way.
+
+> **Recommendation**: We recommend using a powerful, up-to-date model like Google Gemini 1.5 Pro or Claude 3.5 Sonnet as the LLM backbone for this application.
 
 ## Key Features
 
-- **Personalized Research Idea Generation**: Creates astronomy research ideas tailored to the user's specific interests, skill level, time frame, and available resources
-- **Scientific Evaluation**: Expert AI agent reviews the proposed idea and provides detailed feedback on scientific validity, methodology, novelty, and feasibility
-- **Literature Review**: Searches recent arXiv papers to assess the novelty of the idea and identify relevant existing research
-- **Idea Refinement**: Improves the initial research idea based on expert feedback and literature review
-- **User Feedback Integration**: Allows users to provide feedback on the generated idea and receive a refined version
-- **Comprehensive Documentation**: Provides detailed research proposals with background, methodology, expected outcomes, and more
+- **Iterative Idea Refinement**: Engage in a conversation with an AI assistant to turn your rough ideas into well-defined research proposals.
+- **Idea Structuring**: The AI formalizes your concept, identifying a clear research question, methodology, and expected outcomes.
+- **Scientific Evaluation**: An expert AI agent reviews your idea, providing detailed feedback on its scientific validity, methodological soundness, and feasibility.
+- **Automated Literature Review**: The system searches recent arXiv papers to assess the novelty of your idea and provides context from existing research.
+- **Conversational Interface**: A simple chat-based UI allows for a natural, continuous refinement loop.
+- **Context-Aware Feedback**: Optionally provide your skill level, interests, and available resources to receive more tailored feedback.
 
 ## System Architecture
 
-The application consists of three primary AI agents:
+The application consists of three primary AI agents working in a pipeline:
 
-1. **Idea Agent**: Generates initial research ideas and refines them based on feedback
-2. **Reflection Agent**: Evaluates research ideas and provides detailed expert feedback
-3. **Literature Agent**: Conducts literature searches and analyzes the novelty of proposed ideas
+1.  **Idea Agent**: Takes the user's raw input and structures it into a formal research concept.
+2.  **Literature Agent**: Conducts a literature search on arXiv to analyze the novelty of the structured idea.
+3.  **Reflection Agent**: Evaluates the structured idea with the critical eye of an experienced astronomy professor, providing expert feedback.
 
 ## Setup Instructions
 
 ### Prerequisites
 
 - Python 3.8+
-- A Google Gemini API key (recommended) or other supported LLM provider
-
-### Getting a Google Gemini API Key
-
-1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Sign in with your Google account
-3. Click "Create API Key" and follow the instructions
-4. Your API key will be displayed - save it securely for use with this application
+- An API key for a supported LLM provider (Google Gemini, Anthropic Claude, or Azure OpenAI).
 
 ### Installation
 
-1. Clone this repository
-```bash
-git clone https://github.com/your-username/astronomy-idea-generator.git
-cd astronomy-idea-generator
-```
+1.  Clone this repository:
+    ```bash
+    git clone https://github.com/your-username/astronomy-idea-refiner.git
+    cd astronomy-idea-refiner
+    ```
 
-2. Install the required dependencies
-```bash
-pip install -r requirements.txt
-```
+2.  Install the required dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-3. Set up your API keys
-   - Create a `secrets.toml` file in the `.streamlit` directory
-   - Add your API keys, for example:
-   ```
-   GOOGLE_GEMINI_API_KEY = "your-gemini-api-key"
-   ```
+3.  Set up your API key:
+    The application will prompt you to enter your API key in the sidebar of the web interface. No local configuration files are needed.
 
 ### Running the Application
 
@@ -68,77 +59,54 @@ streamlit run app.py
 
 ## Using the Application
 
-1. **Select Research Parameters**:
-   - Choose astronomy subfields of interest
-   - Select your skill level
-   - Specify your time frame
-   - Choose available resources
+1.  **Configure the AI**:
+    -   Open the application in your browser.
+    -   In the sidebar, select your preferred LLM Provider (Google, OpenAI, or Anthropic).
+    -   Enter your corresponding API key.
 
-2. **Generate Initial Idea**:
-   - The system creates a detailed research proposal tailored to your specifications
+2.  **Start the Conversation**:
+    -   Once the API key is entered, the main chat interface will appear.
+    -   Type your initial research idea into the chat box at the bottom and press enter. It can be a simple question, a statement, or a rough concept.
 
-3. **Review Expert Feedback**:
-   - Expert analysis of scientific validity and methodology
-   - Suggestions for improvement
+3.  **Receive AI Feedback**:
+    -   The assistant will process your idea through its three-agent pipeline.
+    -   It will respond with a detailed message containing:
+        -   **Structured Idea**: Your idea, rephrased into a formal proposal.
+        -   **Literature Review**: An analysis of relevant papers from arXiv.
+        -   **Expert Feedback**: A critique of the idea's strengths and weaknesses.
 
-4. **Literature Review**:
-   - Analysis of recent papers in the field
-   - Assessment of your idea's novelty
-   - Recommendations for differentiation
+4.  **Iterate and Refine**:
+    -   Continue the conversation. You can ask for clarification, suggest modifications, or provide more details to further refine the idea.
+    -   Use the "Research Context" options in the sidebar at any time to help the AI provide more tailored feedback.
 
-5. **Improved Research Idea**:
-   - The system generates a refined version that addresses feedback
-   - Compare the original and improved versions
-
-6. **User Feedback (Optional)**:
-   - Provide your own feedback on the idea
-   - Receive a further improved version based on your input
-
-7. **Export Results**:
-   - Download the full research proposal as JSON
-   - Save the development process for reference
+5.  **Start a New Chat**:
+    -   Click the "Start New Chat" button in the sidebar at any time to clear the history and begin a new refinement session.
 
 ## Implementation Details
 
 ### IdeaAgent
 
-The `IdeaAgent` is responsible for generating and improving research ideas. It creates detailed, structured astronomy research proposals by:
-
-- Identifying relevant astronomy subfields based on user interests
-- Selecting appropriate challenges and concepts
-- Generating a comprehensive research proposal with all required sections
-- Refining the proposal based on expert feedback and literature analysis
+The `IdeaAgent`'s primary role is to interpret the user's conversational input and formalize it. It identifies the core research question, proposes a plausible methodology, and structures the user's concept into a coherent proposal that can be evaluated by the other agents.
 
 ### ReflectionAgent
 
-The `ReflectionAgent` evaluates research proposals with the expertise of an astronomy professor, providing:
-
-- Assessment of scientific validity and accuracy
-- Analysis of methodological soundness
-- Evaluation of novelty and knowledge gaps
-- Recommendations for improvement
+The `ReflectionAgent` acts as an expert reviewer. It assesses the structured proposal for scientific validity, methodological rigor, and feasibility, providing constructive feedback to help the student identify both strengths and areas for improvement.
 
 ### LiteratureAgent
 
-The `LiteratureAgent` reviews recent astronomy literature by:
+The `LiteratureAgent` provides real-world context by searching arXiv for recent papers relevant to the user's idea. It analyzes the search results to assess the idea's novelty and suggests ways the student can differentiate their work from existing research.
 
-- Searching for relevant papers on arXiv
-- Analyzing how the proposal relates to existing research
-- Providing a novelty assessment
-- Suggesting ways to differentiate the research
-- Identifying emerging trends in the field
+## Supported LLM Providers
 
-## Supporting LLM Providers
+The application supports multiple LLM providers, including:
 
-While we recommend Google Gemini, the application supports multiple LLM providers:
-
-- **Google Gemini** (Recommended): Free with generous usage limits and excellent scientific reasoning
-- Azure OpenAI Service
-- Anthropic Claude (via API)
+-   **Google Gemini** (e.g., `gemini-1.5-pro-latest`)
+-   **Anthropic Claude** (e.g., `claude-3.5-sonnet-20240620`)
+-   **Azure OpenAI Service**
 
 ## Contributing
 
-Contributions to improve the astronomy research idea generator are welcome. Please feel free to submit issues or pull requests.
+Contributions to improve this application are welcome. Please feel free to submit issues or pull requests.
 
 ## License
 

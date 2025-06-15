@@ -41,6 +41,10 @@ class LLMClient:
         else:
             raise ValueError(f"Unsupported provider: {provider}")
     
+    def generate(self, prompt: str, temperature: float = 0.5) -> str:
+        """Alias for generate_content for compatibility."""
+        return self.generate_content(prompt, temperature)
+
     def generate_content(self, prompt: str, temperature: float = 0.7) -> str:
         """Generate content using the configured LLM
         
@@ -53,7 +57,7 @@ class LLMClient:
         """
         if self.provider == "google":
             response = self.client.models.generate_content(
-                model="gemini-2.0-flash-thinking-exp", 
+                model="gemini-2.5-pro-preview-06-05", 
                 contents=prompt
             )
             return response.text
@@ -64,21 +68,33 @@ class LLMClient:
         elif self.provider == "claude":
             # For Claude, we need to structure the message differently
             response = self.client.messages.create(
-                model="claude-3-7-sonnet-20250219",
-                max_tokens=8000,
+                model="claude-sonnet-4-20250514",
+                max_tokens=4096,
                 messages=[
                     {
                         "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": prompt
-                            }
-                        ]
+                        "content": prompt
                     }
                 ]
             )
             return response.content[0].text
         
         # Fallback (should never reach here)
-        raise ValueError(f"Unsupported provider: {self.provider}") 
+        raise ValueError(f"Unsupported provider: {self.provider}")
+
+    def extract_json(self, text: str) -> Dict[str, Any]:
+        """Extracts a JSON object from a string, cleaning it first."""
+        import json
+        try:
+            # Find the first '{' and the last '}' to extract the JSON block
+            start = text.find('{')
+            end = text.rfind('}') + 1
+            if start == -1 or end == 0:
+                raise ValueError("No JSON object found in the text.")
+            
+            json_str = text[start:end]
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON: {e}")
+            print(f"Original text: {text}")
+            raise ValueError("Failed to parse JSON from the model's response.") 

@@ -54,237 +54,95 @@ class AstronomyReflectionAgent:
         except ValueError as e:
             raise ValueError(f"Error initializing reflection agent: {str(e)}")
     
-    def evaluate_proposal(self, proposal: Dict[str, Any], literature_feedback: Optional[Dict[str, Any]] = None) -> ProposalFeedback:
-        """Evaluate a proposal and return structured feedback."""
-        # Create a detailed prompt for the LLM
-        prompt = self._create_evaluation_prompt(proposal, literature_feedback)
-        
-        # Get response from LLM
-        response = self._get_llm_evaluation(prompt)
-        
-        # Parse the response into structured feedback
-        feedback = self._parse_feedback(response)
-
-        # Add literature insights if available
-        if literature_feedback:
-            feedback.literature_insights = literature_feedback.get("literature_review")
-        
-        return feedback
-    
-    def _create_evaluation_prompt(self, proposal: Dict[str, Any], literature_feedback: Optional[Dict[str, Any]] = None) -> str:
-        """Create a detailed prompt for the LLM to evaluate the proposal."""
-        title = proposal.get("title", "")
-        research_question = proposal.get("idea", {}).get("Research Question", "")
-        background = proposal.get("idea", {}).get("Background", "")
-        methodology = proposal.get("idea", {}).get("Methodology", "")
-        skill_level = proposal.get("skill_level", "")
-        time_frame = proposal.get("time_frame", "")
-        
-        # Base prompt
-        prompt = f"""
-        You are an expert astronomy professor with decades of experience evaluating research proposals.
-        
-        Analyze this astronomy research proposal titled "{title}" thoroughly and provide critical but constructive feedback.
-        
-        RESEARCH QUESTION:
-        {research_question}
-        
-        BACKGROUND:
-        {background}
-        
-        METHODOLOGY:
-        {methodology}
-        
-        STUDENT SKILL LEVEL: {skill_level}
-        TIMEFRAME: {time_frame}
+    def provide_feedback(self, research_proposal: Dict[str, Any]) -> ProposalFeedback:
         """
-        
-        # Add literature feedback if available
-        if literature_feedback and "literature_review" in literature_feedback:
-            lit_review = literature_feedback["literature_review"]
-            
-            # Extract key components from literature feedback
-            similar_papers = lit_review.get("similar_papers", [])
-            novelty_assessment = lit_review.get("novelty_assessment", "")
-            novelty_score = lit_review.get("novelty_score", 5.0)
-            recommendations = lit_review.get("recommended_improvements", [])
-            emerging_trends = lit_review.get("emerging_trends", "")
-            
-            # Format similar papers
-            papers_text = ""
-            for i, paper in enumerate(similar_papers[:3], 1):  # Limit to top 3 papers
-                title = paper.get("title", "Unknown Title")
-                authors = paper.get("authors", "Unknown Authors")
-                year = paper.get("year", "Unknown Year")
-                journal = paper.get("journal", "Unknown Journal")
-                relevance = paper.get("relevance", "")
-                
-                papers_text += f"{i}. {title} by {authors} ({year}) - {journal}\n"
-                if relevance:
-                    papers_text += f"   Relevance: {relevance}\n"
-            
-            # Format recommendations
-            recs_text = "\n".join([f"- {rec}" for rec in recommendations[:3]])  # Limit to top 3
-            
-            # Add literature section to prompt
-            prompt += f"""
-            
-            LITERATURE REVIEW FINDINGS:
-            
-            Similar Recent Papers:
-            {papers_text}
-            
-            Novelty Assessment (Score: {novelty_score}/10):
-            {novelty_assessment}
-            
-            Key Innovation Recommendations:
-            {recs_text}
-            
-            Emerging Research Trends:
-            {emerging_trends}
-            """
-        
-        # Add evaluation instructions
-        prompt += """
-        
-        EVALUATION INSTRUCTIONS:
-        
-        Step by step, evaluate this proposal according to these criteria:
-        
-        1. SCIENTIFIC VALIDITY AND ACCURACY
-        - Is the problem statement clear and specific?
-        - Are there direct, established connections between methods and claimed measurements?
-        - Is the approach based on correct physical and astronomical principles?
-        - Are there any incorrect assumptions or scientific inaccuracies?
-        - Are the instruments/surveys/data sources capable of measuring what's claimed?
-        
-        2. METHODOLOGICAL SOUNDNESS
-        - Does the methodology directly address the stated problem?
-        - Is there a clear logical chain from methods to results?
-        - Are the proposed techniques appropriate for the research question?
-        - Are there statistical or data quality issues not addressed?
-        - Is the signal-to-noise ratio sufficient for the measurements?
-        - Is the methodology concise and well-structured (3-4 paragraphs with clear logical flow)?
-        - Does the methodology avoid excessive technical details that obscure the overall approach?
-        
-        3. NOVELTY AND KNOWLEDGE GAP
-        - **Synthesize the 'LITERATURE REVIEW FINDINGS' provided above** with your own expertise.
-        - Based on both, assess if the proposal addresses a genuine, significant gap in current understanding.
-        - How does it advance beyond the specific literateure cited and the broader field?
-        - Evaluate the originality of the approach and research question.
-        - **Your 'NOVELTY ASSESSMENT' output below should reflect this synthesis.**
-                
-        4. IMPACT AND SIGNIFICANCE
-        - How important is the problem being addressed?
-        - How would results from this project advance astronomical understanding?
-        - Is the research question important to the field?
-        
-        5. FEASIBILITY AND RESOURCE ALIGNMENT
-        - Is this project feasible for a {skill_level} student in {time_frame}?
-        - Are required resources and skills appropriately matched?
-        
-        RESPONSE FORMAT:
-        
-        YOU MUST FOLLOW THIS EXACT FORMAT WITH THESE EXACT SECTION HEADINGS. DO NOT DEVIATE FROM THIS FORMAT.
-        
-        SCIENTIFIC VALIDITY:
-        Strengths:
-        - [List specific scientific strengths]
-        Concerns:
-        - [List specific scientific concerns with detailed technical explanations]
-        
-        METHODOLOGY:
-        Strengths:
-        - [List specific methodological strengths]
-        Concerns:
-        - [List specific methodological concerns with detailed technical explanations]
-        
-        NOVELTY ASSESSMENT:
-        [1-2 paragraphs on novelty and knowledge gap]
-        
-        IMPACT ASSESSMENT:
-        [1-2 paragraphs on significance and potential impact]
-        
-        FEASIBILITY ASSESSMENT:
-        [1-2 paragraphs on feasibility for skill level and timeframe]
-        
-        KEY RECOMMENDATIONS:
-        1. [Specific, actionable recommendation 1]
-        2. [Specific, actionable recommendation 2]
-        3. [Specific, actionable recommendation 3]
-        4. [Specific, actionable recommendation 4]
-        5. [Specific, actionable recommendation 5]
-        
-        SUMMARY ASSESSMENT:
-        [1 paragraph final assessment]
-        
-        Be technically specific and detailed in your assessment. Reference relevant astronomy literature, limitations of instruments/methods, and statistical considerations where appropriate. Focus on constructive improvements.
+        Evaluates a structured research proposal and returns feedback.
         """
+        prompt = self._create_evaluation_prompt(research_proposal)
         
-        return prompt
-    
-    def _get_llm_evaluation(self, prompt: str) -> str:
-        """Get evaluation from the LLM."""
         try:
-            return self.llm_client.generate_content(prompt)
+            response_text = self.llm_client.generate(prompt)
+            feedback_json = self.llm_client.extract_json(response_text)
+            
+            return ProposalFeedback(
+                scientific_validity=feedback_json.get("scientific_validity", {}),
+                methodology=feedback_json.get("methodology", {}),
+                novelty_assessment=feedback_json.get("novelty_assessment", "N/A"),
+                impact_assessment=feedback_json.get("impact_assessment", "N/A"),
+                feasibility_assessment=feedback_json.get("feasibility_assessment", "N/A"),
+                recommendations=feedback_json.get("recommendations", []),
+                summary=feedback_json.get("summary", "N/A")
+            )
         except Exception as e:
-            print(f"Error in LLM evaluation: {str(e)}")
-            raise
+            print(f"Error parsing reflection feedback: {e}")
+            # Return a default/error object
+            return ProposalFeedback(
+                scientific_validity={'strengths': [], 'concerns': ['Failed to parse AI feedback.']},
+                methodology={'strengths': [], 'concerns': []},
+                novelty_assessment="N/A",
+                impact_assessment="N/A",
+                feasibility_assessment="N/A",
+                recommendations=[],
+                summary="Could not generate feedback due to an internal error."
+            )
+
+    def _create_evaluation_prompt(self, proposal: Dict[str, Any]) -> str:
+        """Create a detailed prompt for the LLM to evaluate the proposal."""
         
-    
-    def _parse_feedback(self, response: str) -> ProposalFeedback:
-        """Parse the LLM response into structured feedback."""
-        # Extract sections using string manipulation (implement based on your LLM's output format)
-        scientific_validity = self._extract_category_feedback(response, "SCIENTIFIC VALIDITY:", "METHODOLOGY:")
-        methodology = self._extract_category_feedback(response, "METHODOLOGY:", "NOVELTY ASSESSMENT:")
-        
-        novelty = self._extract_section(response, "NOVELTY ASSESSMENT:", "IMPACT ASSESSMENT:")
-        impact = self._extract_section(response, "IMPACT ASSESSMENT:", "FEASIBILITY ASSESSMENT:")
-        feasibility = self._extract_section(response, "FEASIBILITY ASSESSMENT:", "KEY RECOMMENDATIONS:")
-        
-        recommendations_text = self._extract_section(response, "KEY RECOMMENDATIONS:", "SUMMARY ASSESSMENT:")
-        recommendations = [r.strip() for r in recommendations_text.split("\n") if r.strip() and any(c.isalpha() for c in r)]
-        
-        summary = self._extract_section(response, "SUMMARY ASSESSMENT:", "")
-        
-        return ProposalFeedback(
-            scientific_validity=scientific_validity,
-            methodology=methodology,
-            novelty_assessment=novelty,
-            impact_assessment=impact,
-            feasibility_assessment=feasibility,
-            recommendations=recommendations,
-            summary=summary
-        )
-    
-    def _extract_section(self, text: str, start_marker: str, end_marker: str) -> str:
-        """Extract text between two markers."""
-        start_idx = text.find(start_marker)
-        if start_idx == -1:
-            return ""
-        
-        start_idx += len(start_marker)
-        
-        if end_marker:
-            end_idx = text.find(end_marker, start_idx)
-            if end_idx == -1:
-                return text[start_idx:].strip()
-            return text[start_idx:end_idx].strip()
-        else:
-            return text[start_idx:].strip()
-    
-    def _extract_category_feedback(self, text: str, category_start: str, category_end: str) -> Dict[str, List[str]]:
-        """Extract strengths and concerns for a category."""
-        category_text = self._extract_section(text, category_start, category_end)
-        
-        strengths_text = self._extract_section(category_text, "Strengths:", "Concerns:")
-        strengths = [s.strip()[2:] for s in strengths_text.split("\n") if s.strip().startswith("- ")]
-        
-        concerns_text = self._extract_section(category_text, "Concerns:", "")
-        concerns = [c.strip()[2:] for c in concerns_text.split("\n") if c.strip().startswith("- ")]
-        
-        return {"strengths": strengths, "concerns": concerns}
-    
+        # Safely extract proposal details
+        title = proposal.get("title", "N/A")
+        idea = proposal.get("idea", {})
+        research_question = idea.get("Research Question", "N/A")
+        background = idea.get("Background", "N/A")
+        methodology = idea.get("Methodology", "N/A")
+        skill_level = proposal.get("skill_level", "N/A")
+        time_frame = proposal.get("time_frame", "N/A")
+
+        prompt = f"""
+You are an expert astronomy professor providing constructive feedback on a student's research idea.
+Your tone should be encouraging but also rigorous and scientifically precise.
+
+**Student's Proposal:**
+- Title: {title}
+- Research Question: {research_question}
+- Background: {background}
+- Proposed Methodology: {methodology}
+- Student's Stated Skill Level: {skill_level}
+- Time Frame: {time_frame}
+
+**Your Task:**
+Evaluate the proposal based on the criteria below. Provide specific, actionable feedback. Your entire response MUST be a single JSON object.
+
+{{
+  "scientific_validity": {{
+    "strengths": [
+      "[List 1-2 specific scientific strengths. What core ideas are promising? Is the question well-posed?]"
+    ],
+    "concerns": [
+      "[List 1-2 specific scientific concerns. Are there flawed assumptions? Is the goal physically plausible?]"
+    ]
+  }},
+  "methodology": {{
+    "strengths": [
+      "[List 1-2 strengths of the proposed methodology. Is the approach logical? Is the choice of data/technique appropriate?]"
+    ],
+    "concerns": [
+      "[List 1-2 concerns about the methodology. Is it too simple or too complex? Are there unaddressed biases or limitations?]"
+    ]
+  }},
+  "novelty_assessment": "[Provide a 1-2 sentence assessment of the idea's novelty. Does it address a known gap? How does it compare to standard approaches?]",
+  "impact_assessment": "[Provide a 1-2 sentence assessment of the potential impact. If successful, what would this research contribute to the field?]",
+  "feasibility_assessment": "[Provide a 1-2 sentence assessment of the project's feasibility, considering the student's skill level ('{skill_level}') and the time frame ('{time_frame}'). Is the scope realistic?]",
+  "recommendations": [
+    "[Provide a specific, actionable recommendation for improving the scientific framing.]",
+    "[Provide a specific, actionable recommendation for improving the methodology.]",
+    "[Provide one other key recommendation to strengthen the overall proposal.]"
+  ],
+  "summary": "[Write a final, 2-3 sentence summary that synthesizes your feedback and gives the student a clear sense of the proposal's potential and key next steps.]"
+}}
+"""
+        return prompt
+
     def format_feedback_for_idea_agent(self, feedback: ProposalFeedback) -> Dict[str, Any]:
         """Format feedback for consumption by the idea agent."""
         # Extract components
@@ -295,9 +153,11 @@ class AstronomyReflectionAgent:
         return {
             "scientific_validity": feedback.scientific_validity,
             "methodology": feedback.methodology,
+            "novelty_assessment": feedback.novelty_assessment,
+            "impact_assessment": feedback.impact_assessment,
+            "feasibility_assessment": feedback.feasibility_assessment,
             "recommendations": feedback.recommendations,
-            "summary": feedback.summary,
-            "literature_insights": feedback.literature_insights
+            "summary": feedback.summary
         }
     
 if __name__ == "__main__":
@@ -339,12 +199,12 @@ if __name__ == "__main__":
     print("STEP 2: EVALUATING RESEARCH IDEA...")
     print("="*100)
     # Step 4: Evaluate the research idea
-    feedback = reflection_agent.evaluate_proposal(initial_idea)
+    feedback = reflection_agent.provide_feedback(initial_idea)
     
     # Step 5: Format and print the feedback
     formatted_feedback = reflection_agent.format_feedback_for_idea_agent(feedback)
     print("\n=== EXPERT FEEDBACK ===")
-    print(formatted_feedback)
+    print(json.dumps(formatted_feedback, indent=2))
     
     print("\n" + "="*100)
     print("STEP 3: GENERATING IMPROVED RESEARCH IDEA...")

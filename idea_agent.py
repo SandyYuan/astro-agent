@@ -33,305 +33,75 @@ class IdeaAgent:
         self.feedback_history = []
         self.improvement_count = 0
     
-    def generate_initial_idea(
+    def structure_and_rephrase_idea(
         self,
+        user_idea: str,
         student_interests: Optional[List[str]] = None,
         skill_level: str = "beginner",
-        time_frame: str = "2-3 years",
+        time_frame: str = "1 year",
         available_resources: Optional[List[str]] = None,
         additional_context: str = ""
     ) -> Dict[str, Any]:
-        """Generate initial research idea based on student profile."""
-        # Store student profile
+        """
+        Takes a user's raw idea and structures it into a formal research proposal.
+        """
         self.student_profile = {
-            "student_interests": student_interests or [random.choice(ASTRONOMY_SUBFIELDS).name],
+            "student_interests": student_interests,
             "skill_level": skill_level,
             "time_frame": time_frame,
-            "available_resources": available_resources or ["Public astronomical datasets", "University computing cluster"],
+            "available_resources": available_resources,
             "additional_context": additional_context
         }
-        
-        # Extract profile details from self.student_profile
-        student_interests = self.student_profile["student_interests"]
-        skill_level = self.student_profile["skill_level"]
-        time_frame = self.student_profile["time_frame"]
-        available_resources = self.student_profile["available_resources"]
-        additional_context = self.student_profile["additional_context"]
 
-        # Filter relevant subfields based on interests
-        relevant_subfields = [
-            subfield for subfield in ASTRONOMY_SUBFIELDS
-            if any(interest.lower() in subfield.name.lower() or 
-                   interest.lower() in subfield.description.lower() or
-                   any(interest.lower() in challenge.lower() for challenge in subfield.current_challenges)
-                   for interest in student_interests)
-        ]
+        prompt = f"""
+You are an expert astronomy research advisor. A student has come to you with a research idea. Your task is to take their raw input and rephrase it into a structured, coherent, and scientifically sound research proposal concept.
 
-        # If no subfields match, use a random selection
-        if not relevant_subfields:
-            relevant_subfields = random.sample(ASTRONOMY_SUBFIELDS, min(3, len(ASTRONOMY_SUBFIELDS)))
+**DO NOT INVENT A NEW IDEA.** Your sole purpose is to clarify, structure, and formalize the student's existing idea based *only* on the information they have provided.
 
-        # Extract user-specified topics from additional context
-        user_specified_topics = []
-        if additional_context and additional_context.strip():
-            context_sentences = additional_context.split('.')
-            for sentence in context_sentences:
-                sentence = sentence.strip()
-                interest_indicators = [
-                    "interested in", "want to study", "focus on", "research on",
-                    "investigate", "explore", "work on", "curious about", "question is",
-                    "wondering about", "like to understand", "project on"
-                ]
-                if any(indicator in sentence.lower() for indicator in interest_indicators) and len(sentence) > 20:
-                    user_specified_topics.append(sentence)
+**Student's Raw Idea:**
+"{user_idea}"
 
-        # Select topics - prioritize user-specified ones
-        selected_topics = []
-        if user_specified_topics:
-            selected_topics = user_specified_topics[:4]
-        else:
-            random_topics = []
-            for subfield in relevant_subfields:
-                subfield_topics = []
-                if subfield.current_challenges:
-                    challenge_count = min(2, len(subfield.current_challenges))
-                    selected_challenges = random.sample(subfield.current_challenges, challenge_count)
-                    subfield_topics.extend(selected_challenges)
-                
-                key_concepts = []
-                description_sentences = subfield.description.split('.')
-                for sentence in description_sentences:
-                    words = sentence.split()
-                    if len(words) > 3 and any(word[0].isupper() for word in words if len(word) > 1):
-                        clean_sentence = sentence.strip()
-                        if clean_sentence:
-                            key_concepts.append(clean_sentence)
-                
-                if key_concepts:
-                    concept_count = min(1, len(key_concepts))
-                    selected_concepts = random.sample(key_concepts, concept_count)
-                    subfield_topics.extend(selected_concepts)
-                
-                random_topics.extend(subfield_topics)
-            
-            if random_topics:
-                random.shuffle(random_topics)
-                selected_topics = random_topics[:1]
-            else:
-                # Fallback if no topics generated
-                 selected_topics = [f"Explore topics within {', '.join(s.name for s in relevant_subfields)}"]
+**Student's Context:**
+- Interests: {', '.join(student_interests) if student_interests else 'Not specified'}
+- Skill Level: {skill_level}
+- Time Frame: {time_frame}
+- Available Resources: {', '.join(available_resources) if available_resources else 'Not specified'}
+- Additional Context: {additional_context}
 
-        selected_topics = list(dict.fromkeys(selected_topics)) # Remove duplicates
+Based on the student's idea and context, please structure it into the following JSON format. Fill in each field by interpreting their request. If their idea is vague, make reasonable, scientifically-grounded inferences to fill out the sections, but clearly state that you are making an assumption.
 
-        # Prepare the prompt
-        prompt = f"""Generate a novel and scientifically accurate astronomy research idea for a {skill_level} graduate student.
+Your response MUST be a single JSON object.
 
-Your research idea should address one or more of these challenges or concepts in a novel way:
-{chr(10).join(f"- {topic}" for topic in selected_topics)}
-
-Parameters:
-- Student interests: {', '.join(student_interests)}
-- Relevant subfields: {', '.join(subfield.name for subfield in relevant_subfields)}
-- Time frame: {time_frame}
-- Available resources: {', '.join(available_resources)}
-- Skill level: {skill_level}
-
-IMPORTANT - SPECIFIC USER GUIDANCE:
-The student has provided the following additional context that should strongly guide your research idea generation:
-{additional_context}
-
-**Key Scientific Principles:**
-- Ensure the research question is specific, impactful, and addresses a genuine knowledge gap.
-- Methods must be scientifically sound, clearly linked to the research question, and appropriate for the data/resources.
-- Claims must be realistic and proportional to what the methods and data can actually measure (consider S/N, statistical power, parameter degeneracies).
-- Describe phenomena and use terminology accurately according to established scientific understanding.
-- Scope: The project must be feasible for the student's level ({skill_level}), completable within the timeframe ({time_frame}), and utilize only the specified available resources ({', '.join(available_resources)}).
-- Focus on creative ideas by seeking scientifically plausible connections between different concepts, subfields, or the provided challenges, even if they seem unrelated at first glance.
-
-Your response MUST follow this exact format with all sections thoroughly completed:
-
-# [DESCRIPTIVE PROJECT TITLE]
-IMPORTANT: Create a SPECIFIC, DESCRIPTIVE title that clearly describes the exact research project. The title should precisely capture what the student will be investigating.
-
-## Research Question
-Begin with a clear, explicit, concise, andpunchy mission statement formatted as follows:
-"In this project, we aim to [solve problem/achieve goal] by [summary of solution/proposal]."
-
-Then break down the proposed project into a 2-3 key steps, following rigorous scientific methodology. Format this as:
-"Specifically, we will first [first step], then we will [second step]. Finally, we will [final step] to [obtain result/achieve goal]."
-
-IMPORTANT: Explicitly state the specific problem or gap in knowledge this research aims to solve. Format this as:
-"This research addresses the problem of [specific problem statement], which is currently unresolved because [reasons for knowledge gap]."
-
-Finally, explain why the proposed method is best-suited for the problem. Format this as:
-"The proposed method is best-suited for the problem because [specific advantages of approach]."
-
-## Background
-Provide 3-4 paragraphs explaining:
-1. The current state of knowledge in this specific area, citing recent developments (within the last 3-5 years)
-2. Key gaps or uncertainties this research addresses
-3. Why this gap is scientifically significant and timely
-4. Why this project is particularly suitable for a {skill_level} student
-
-The first paragraph must begin by clearly stating: "The key problem this research addresses is [concise problem statement]." Then elaborate on why this problem matters to the field.
-
-## Methodology
-Begin with: "To address the problem of [restate the specific problem], we will use the following approach:"
-
-Provide a CONCISE methodology in 3-4 paragraphs that follows a clear logical flow. Each paragraph should focus on a distinct phase of the research:
-
-1: Data Acquisition and Processing
-- Specify exact data sources (survey names, telescope facilities, or dataset identifiers)
-- Describe initial data selection criteria and preprocessing steps
-
-2: Analysis Approach
-- Outline the core analytical methods in a logical sequence
-- Specify software tools and programming languages to be used
-- Explain how these methods directly connect to answering the research question
-
-3: Validation and Interpretation
-- Describe how results will be validated (e.g., statistical tests, comparison with models)
-- Explain how potential biases or limitations will be addressed
-- Briefly outline how results will be interpreted in the context of the research question
-
-Optional Paragraph 4: Timeline
-- Provide a brief timeline showing how these steps will be completed within the {time_frame}
-
-IMPORTANT: Maintain a clear logical flow between steps. Each step should naturally lead to the next, forming a coherent research pipeline. Avoid excessive technical details that obscure the overall approach.
-
-## Expected Outcomes
-Describe at least three concrete, measurable results this research could produce, such as:
-1. Specific measurements or constraints on particular parameters
-2. New catalogs or data products
-3. Statistical relationships or correlations
-4. Potential for publication or contribution to larger surveys
-
-For each outcome, explicitly state how it contributes to solving the identified problem.
-
-## Potential Challenges
-List potential challenges specific to this project and briefly suggest mitigation strategies.
-
-## Required Skills
-List at least five precise technical and knowledge-based skills needed, suggesting how these could be developed during the project. Include both initial skills needed and those that will be developed.
-
-## Broader Connections
-Explain in detail how this research connects to at least three larger questions in astronomy and astrophysics, and how results from this project might inform future work.
-
-Make sure the idea is:
-- GENUINELY NOVEL yet connected to existing literature
-- Timely and of high impact
-- Appropriately scoped (not too broad or narrow)
-- Utilizes available resources: {', '.join(available_resources)}
-- Has a VERY SPECIFIC research question with clear data sources, methods, and objectives
-- Scientifically sound and technically feasible
-
-Also make sure to follow the following skill level guideline. For a {skill_level} student within a {time_frame} timeframe:
-
-BEGINNER STUDENTS:
-- Focus on applying ESTABLISHED methods to well-understood problems
-- Prioritize data analysis of public datasets over novel technique development
-- Include explicit mentorship/learning components for new skills
-- Limit to 1-2 new techniques to learn during the project
-
-INTERMEDIATE STUDENTS:
-- May combine established methods in novel ways
-- Can develop modest extensions to existing techniques
-- Should still rely primarily on proven methodologies
-- May handle datasets requiring moderate preprocessing
-- Limit to 2-3 advanced components
-
-ADVANCED STUDENTS:
-- May develop new methodological approaches
-- Can address more open-ended research questions
-- Should still maintain logical connections between methods and goals
-- Realistic about complexity within timeframe
-
-ALL PROJECTS MUST: 
-- Maintain scientific integrity regardless of skill level
-- Have clear, logical connections between methods and measurements
-- Be completable within the specified timeframe
-- Produce meaningful results even if preliminary
+{{
+  "title": "[Create a concise, descriptive title for the research project based on the user's idea]",
+  "subfields": ["Identify the most relevant astronomy subfields (e.g., 'Exoplanet Atmospheres', 'Cosmology', 'Stellar Astrophysics')"],
+  "skill_level": "{skill_level}",
+  "time_frame": "{time_frame}",
+  "idea": {{
+    "Research Question": "[Based on the user's idea, formulate a single, clear, and testable research question. If the user's idea is a statement, turn it into a question.]",
+    "Background": "[Provide 1-2 paragraphs of background context. Explain why the user's question is scientifically interesting and relevant. If possible, mention what makes it timely.]",
+    "Methodology": "[Propose a high-level, 2-3 step methodology appropriate for the skill level and resources. For example: 1. Data Acquisition (mentioning a plausible public dataset like SDSS, Gaia, TESS). 2. Analysis (mentioning a plausible technique like photometry, spectroscopy, or statistical analysis). 3. Interpretation.]",
+    "Expected Outcomes": "[Describe 2-3 potential, concrete outcomes from this research. What would be the tangible result? (e.g., a catalog of objects, a measurement of a parameter, a confirmation of a theory).]",
+    "Potential Challenges": "[List 1-2 key challenges the student might face (e.g., 'Data quality may be a concern', 'Distinguishing signal from noise could be difficult').]",
+    "Required Skills": "[List key skills needed, aligned with the methodology (e.g., 'Python programming (pandas, astropy)', 'Basic data analysis', 'Understanding of stellar evolution').]"
+  }},
+  "resources_needed": ["List the specific resources from the user's context that would be needed for this project."]
+}}
 """
-        # print("idea prompt", prompt) # Keep print statement commented out
-
-        # Call the LLM to generate the research idea using self.llm_client
+        
         try:
-            idea_text = self.llm_client.generate_content(prompt)
+            response_text = self.llm_client.generate(prompt)
+            # Clean the response to ensure it's valid JSON
+            json_response = self.llm_client.extract_json(response_text)
+            self.current_idea = json_response
+            return self.current_idea
         except Exception as e:
-            print(f"Error generating research idea: {str(e)}")
-            raise RuntimeError(f"Failed to generate research idea: {str(e)}")
-        
-        # Parse the response into structured sections
-        sections = [
-            "Research Question",
-            "Background",
-            "Methodology",
-            "Expected Outcomes",
-            "Potential Challenges",
-            "Required Skills",
-            "Broader Connections"
-        ]
-        
-        parsed_idea = {}
-        current_section = None
-        section_content = []
-        
-        # Extract Title first (should be on the first line with # prefix)
-        title = ""
-        lines = idea_text.split('\n')
-        for i, line in enumerate(lines):
-            if line.startswith('# '):
-                title = line.replace('# ', '').strip()
-                lines = lines[i+1:] # Remove title line from processing
-                break
-        
-        # Fallback if title is missing or a placeholder
-        if not title or title == "[DESCRIPTIVE PROJECT TITLE]" or title.startswith("[Create a specific"):
-            # Generate a fallback title based on selected topics/interests
-            topic_str = ', '.join(selected_topics) if selected_topics else ', '.join(student_interests)
-            title = f"Research Proposal on {topic_str[:50]}" # Truncate if too long
-
-        # Now parse the rest of the content
-        for line in lines:
-            # Skip the title line if it wasn't removed properly (redundant check)
-            if line.startswith('# '):
-                continue
-                
-            # Check if line starts a new section
-            new_section = False
-            if line.startswith('## '):
-                section_name = line.replace('## ', '').strip()
-                if section_name in sections:
-                    if current_section and section_content:
-                        parsed_idea[current_section] = '\n'.join(section_content).strip()
-                    current_section = section_name
-                    section_content = []
-                    new_section = True
-            
-            if not new_section and current_section is not None:
-                section_content.append(line)
-        
-        # Add the last section
-        if current_section and section_content:
-            parsed_idea[current_section] = '\n'.join(section_content).strip()
-        
-        # Ensure all required sections exist, add placeholders if missing
-        for section in sections:
-            if section not in parsed_idea:
-                parsed_idea[section] = f"[Missing Content for {section}]"
-        
-        # Store the generated idea in self.current_idea
-        self.current_idea = {
-            "title": title,
-            "subfields": student_interests, # Store the originally provided interests
-            "skill_level": skill_level,
-            "time_frame": time_frame,
-            "resources_needed": available_resources,
-            "idea": parsed_idea,
-            "version": 0 # Initial version
-        }
-        
-        return self.current_idea
+            print(f"An error occurred while structuring the idea: {e}")
+            # In case of a failure, return a structured error message
+            return {
+                "error": "Failed to structure the research idea.",
+                "details": str(e)
+            }
     
     def improve_idea(self, feedback: Dict[str, Any]) -> Dict[str, Any]:
         """Improve the current idea based on expert feedback and optional literature insights."""
@@ -772,7 +542,7 @@ if __name__ == "__main__":
     # Example using the new stateful agent
     print("\nGENERATING IDEA USING STATEFUL AGENT:")
     idea_agent = IdeaAgent()
-    initial_idea = idea_agent.generate_initial_idea(**student_profile)
+    initial_idea = idea_agent.structure_and_rephrase_idea(**student_profile)
     print(json.dumps(initial_idea, indent=2))
     
     # Example of improvement (would normally come from a reflection agent)
