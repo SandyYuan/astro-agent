@@ -62,6 +62,16 @@ def initialize_session_state():
         
     if 'app_mode' not in st.session_state:
         st.session_state.app_mode = 'iteration' # 'iteration' or 'generation'
+        
+    # Add state variables for the pipeline outputs
+    if 'structured_idea' not in st.session_state:
+        st.session_state.structured_idea = None
+    if 'literature_feedback' not in st.session_state:
+        st.session_state.literature_feedback = None
+    if 'reflection' not in st.session_state:
+        st.session_state.reflection = None
+    if 'improved_idea' not in st.session_state:
+        st.session_state.improved_idea = None
 
 
 def reset_state(mode='iteration'):
@@ -78,6 +88,12 @@ def reset_state(mode='iteration'):
     st.session_state.time_frame = '1 year'
     st.session_state.skip_literature_review = False
     st.session_state.app_mode = mode
+    
+    # Clear pipeline outputs
+    st.session_state.structured_idea = None
+    st.session_state.literature_feedback = None
+    st.session_state.reflection = None
+    st.session_state.improved_idea = None
     
     # Restore API key and provider
     st.session_state.api_key = api_key
@@ -153,13 +169,24 @@ def run_refinement_pipeline(user_idea: str) -> tuple[Optional[Dict], Optional[Li
     structured_idea, literature_feedback, reflection, improved_idea = None, None, None, None
 
     try:
-        with st.spinner("Step 1: Structuring your idea..."):
-            structured_idea = st.session_state.idea_agent.structure_and_rephrase_idea(
-                user_idea=user_idea
-            )
-            if not structured_idea or "error" in structured_idea:
-                st.error("Could not structure the idea.")
-                return None, None, None, None
+        # If there's an improved idea from a previous turn, refine it. Otherwise, start fresh.
+        if st.session_state.improved_idea:
+            with st.spinner("Step 1: Refining idea based on your feedback..."):
+                structured_idea = st.session_state.idea_agent.refine_with_feedback(
+                    previous_idea=st.session_state.improved_idea,
+                    user_feedback=user_idea
+                )
+        else:
+            with st.spinner("Step 1: Structuring your idea..."):
+                structured_idea = st.session_state.idea_agent.structure_and_rephrase_idea(
+                    user_idea=user_idea
+                )
+        
+        # Store the current idea
+        st.session_state.structured_idea = structured_idea
+        if not structured_idea or "error" in structured_idea:
+            st.error("Could not structure or refine the idea.")
+            return None, None, None, None
 
         if not st.session_state.skip_literature_review:
             with st.spinner("Performing literature search..."):
@@ -176,6 +203,7 @@ def run_refinement_pipeline(user_idea: str) -> tuple[Optional[Dict], Optional[Li
             reflection = st.session_state.reflection_agent.provide_feedback(
                 research_proposal=structured_idea
             )
+            st.session_state.reflection = reflection
         
         with st.spinner("Step 4: Generating improved proposal..."):
             if reflection:
@@ -183,6 +211,7 @@ def run_refinement_pipeline(user_idea: str) -> tuple[Optional[Dict], Optional[Li
                     reflection_feedback=asdict(reflection),
                     literature_feedback=asdict(literature_feedback) if literature_feedback else None
                 )
+                st.session_state.improved_idea = improved_idea
 
 
         return structured_idea, literature_feedback, reflection, improved_idea

@@ -128,6 +128,34 @@ Your response MUST be a single JSON object. Do not include any text outside the 
                 "details": str(e)
             }
     
+    def refine_with_feedback(self, previous_idea: Dict[str, Any], user_feedback: str) -> Dict[str, Any]:
+        """Refines an existing research proposal based on direct user feedback."""
+        
+        prompt = f"""
+        You are an AI research assistant. Your task is to refine the following research proposal based on the user's feedback.
+        Integrate the feedback directly into the proposal, updating the relevant sections.
+        Return a new, complete proposal in the same JSON format as the original.
+
+        **Previous Proposal (JSON):**
+        {json.dumps(previous_idea, indent=2)}
+
+        **User Feedback:**
+        "{user_feedback}"
+
+        Now, generate the new, updated proposal based on this feedback.
+        """
+        
+        print("Refining idea with user feedback...")
+        response_text = self.llm_client.generate(prompt)
+        
+        # Extract the JSON from the response
+        new_idea = self.llm_client.extract_json(response_text)
+        
+        # Update the last structured idea for context
+        self.last_structured_idea = new_idea
+        
+        return new_idea
+
     def improve_idea(self, reflection_feedback: Dict[str, Any], literature_feedback: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Improves the current research idea based on feedback."""
         if not self.current_idea:
