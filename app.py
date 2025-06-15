@@ -264,7 +264,7 @@ def display_improved_proposal(idea: Dict[str, Any]):
         st.markdown(f"**Research Question:** {idea_details.get('Research Question', 'N/A')}")
         st.markdown(f"**Proposed Solution:** {idea_details.get('Proposed Solution', 'N/A')}")
 
-        with st.expander("View Full Improved Proposal"):
+        with st.expander("View details"):
             st.markdown(f"**Background:** {idea_details.get('Background', 'N/A')}")
             st.markdown(f"**Expected Outcomes:** {idea_details.get('Expected Outcomes', 'N/A')}")
 
@@ -394,34 +394,35 @@ def main():
                 reset_state(mode='generation')
                 st.rerun()
 
-        st.header("Research Context (For AI Generation)")
-        
-        st.session_state.skill_level = st.select_slider(
-            "Your Skill Level",
-            options=['high school', 'undergraduate', 'graduate', 'postdoc'],
-            value=st.session_state.skill_level,
-            key='skill_level_slider'
-        )
-        
-        st.session_state.time_frame = st.selectbox(
-            "Time Frame",
-            ['3 months', '6 months', '1 year', '2+ years'],
-            index=2,
-            key='time_frame_select'
-        )
-
-        st.subheader("Interests")
-        for subfield in ASTRONOMY_SUBFIELDS:
-            st.checkbox(subfield.name, key=f"interest_{subfield.name}", on_change=update_interests)
+        if st.session_state.app_mode == 'generation':
+            st.header("Research Context (For AI Generation)")
             
-        st.subheader("Available Resources")
-        resource_options = [
-            "Public astronomical datasets", "Telescope access (ground-based)",
-            "Telescope access (space-based)", "High-performance computing",
-            "Laboratory/experimental facilities", "Existing survey data", "Other"
-        ]
-        for resource in resource_options:
-            st.checkbox(resource, key=f"resource_{resource}", on_change=update_resources, value=(resource in st.session_state.resources))
+            st.session_state.skill_level = st.selectbox(
+                "Your Skill Level",
+                options=['high school', 'undergraduate', 'graduate', 'postdoc'],
+                index=['high school', 'undergraduate', 'graduate', 'postdoc'].index(st.session_state.skill_level),
+                key='skill_level_dropdown'
+            )
+            
+            st.session_state.time_frame = st.selectbox(
+                "Time Frame",
+                ['3 months', '6 months', '1 year', '2+ years'],
+                index=2,
+                key='time_frame_select'
+            )
+
+            st.subheader("Interests")
+            for subfield in ASTRONOMY_SUBFIELDS:
+                st.checkbox(subfield.name, key=f"interest_{subfield.name}", on_change=update_interests)
+                
+            st.subheader("Available Resources")
+            resource_options = [
+                "Public astronomical datasets", "Telescope access (ground-based)",
+                "Telescope access (space-based)", "High-performance computing",
+                "Laboratory/experimental facilities", "Existing survey data", "Other"
+            ]
+            for resource in resource_options:
+                st.checkbox(resource, key=f"resource_{resource}", on_change=update_resources, value=(resource in st.session_state.resources))
 
         add_literature_options_to_sidebar()
 
@@ -432,7 +433,7 @@ def main():
 
     if st.session_state.app_mode == 'iteration':
         # --- Main Chat Interface ---
-        st.info("You are in **Idea Iteration** mode. Enter your research idea below to begin the refinement process.")
+        st.info("You are in Idea Iteration mode. Enter your thoughts below to begin the refinement process.")
         
         # Display chat messages
         for message in st.session_state.messages:
@@ -441,7 +442,7 @@ def main():
                 st.markdown(message["content"])
 
         # Chat input
-        if prompt := st.chat_input("Enter your research idea or question here..."):
+        if prompt := st.chat_input("enter your idea, question, or just some thoughts here..."):
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
