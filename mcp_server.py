@@ -15,7 +15,8 @@ from mcp.types import (
     ListToolsResult,
     Tool,
     TextContent,
-    JSONContent,
+    ServerCapabilities,
+    ToolsCapability,
 )
 
 # Import agent classes
@@ -77,7 +78,7 @@ def _get_temperature(params: Dict[str, Any]) -> float:
 # --- MCP Tool Implementations ---
 
 @server.call_tool()
-async def generate_idea(arguments: Dict[str, Any]) -> List[TextContent | JSONContent]:
+async def generate_idea(arguments: Dict[str, Any]) -> List[TextContent]:
     """
     Generates a novel and structured astronomy research idea tailored to a student's profile.
     
@@ -130,13 +131,13 @@ async def generate_idea(arguments: Dict[str, Any]) -> List[TextContent | JSONCon
             available_resources=resources
         )
         
-        return [JSONContent(content=result)]
+        return [TextContent(type="text", text=json.dumps(result))]
         
     except Exception as e:
         return [TextContent(type="text", text=f"Error generating idea: {str(e)}")]
 
 @server.call_tool()
-async def structure_idea(arguments: Dict[str, Any]) -> List[TextContent | JSONContent]:
+async def structure_idea(arguments: Dict[str, Any]) -> List[TextContent]:
     """
     Transforms a raw, unstructured user idea into a formal, scientifically-grounded research proposal.
     
@@ -183,13 +184,13 @@ async def structure_idea(arguments: Dict[str, Any]) -> List[TextContent | JSONCo
         agent = IdeaAgent(api_key=api_key, provider=provider, temperature=temperature)
         result = agent.structure_and_rephrase_idea(user_idea=arguments['user_idea'])
         
-        return [JSONContent(content=result)]
+        return [TextContent(type="text", text=json.dumps(result))]
         
     except Exception as e:
         return [TextContent(type="text", text=f"Error structuring idea: {str(e)}")]
 
 @server.call_tool()
-async def literature_review(arguments: Dict[str, Any]) -> List[TextContent | JSONContent]:
+async def literature_review(arguments: Dict[str, Any]) -> List[TextContent]:
     """
     Performs comprehensive literature search and novelty assessment for a research proposal.
     
@@ -198,294 +199,292 @@ async def literature_review(arguments: Dict[str, Any]) -> List[TextContent | JSO
     novelty of the proposed research and provides specific suggestions for differentiation.
     
     The process includes:
-    1. Extracting key terms from the research proposal
-    2. Searching Semantic Scholar's academic database
-    3. Analyzing retrieved papers for relevance and similarity
-    4. Assessing the novelty of the proposed research (1-10 scale)
-    5. Identifying gaps in existing literature
-    6. Suggesting ways to differentiate the research
-    7. Highlighting emerging trends in the field
+    - Intelligent keyword extraction from the research proposal
+    - Systematic search across multiple relevant astronomy subfields
+    - Analysis of paper abstracts, citations, and publication dates
+    - Assessment of research novelty and gap identification
+    - Specific recommendations for research differentiation
+    - Summary of key findings and related work
     
-    This tool is essential for:
-    - Validating research novelty before starting a project
-    - Understanding the current state of research in the field
-    - Identifying opportunities for original contributions
-    - Avoiding duplication of existing work
-    - Finding related work to cite and build upon
+    This automated review helps researchers understand the current state of their field,
+    identify potential overlaps with existing work, and find opportunities for novel
+    contributions. The feedback is structured to be actionable and specific.
     
     Input Parameters:
-    - proposal_json (required): Complete structured research proposal as JSON object or string
-      Should contain at minimum: title, research question, and methodology
-      Typically this is the output from generate_idea or structure_idea tools
-    - provider (optional): LLM provider for analysis ("google", "azure", "claude") - defaults to "google"
+    - proposal (required): The structured research proposal to review (JSON string or object)
+      Should be a complete proposal with title, methodology, research question, etc.
+      Can be output from 'generate_idea' or 'structure_idea' tools
+    - max_papers (optional): Maximum number of papers to analyze (default: 20)
+      Higher values provide more comprehensive coverage but take longer
+    - provider (optional): LLM provider to use ("google", "azure", "claude") - defaults to "google"
     - temperature (optional): LLM temperature for analysis (0.0-1.0) - defaults to 0.5
     
     Returns:
-    JSON object containing:
-    - similar_papers: List of relevant papers found with titles, authors, and abstracts
-    - novelty_score: Numerical assessment (1-10) of research novelty
-    - novelty_assessment: Detailed explanation of the novelty evaluation
-    - differentiation_suggestions: Specific recommendations for making research unique
-    - emerging_trends: Current trends in the research area
-    - recommended_improvements: Suggestions for enhancing the proposal
-    - summary: Overall assessment and recommendations
-    
-    Note: This tool requires internet access to query Semantic Scholar's API.
+    JSON object containing literature review results including:
+    - Novelty assessment score and explanation
+    - List of highly relevant papers with summaries
+    - Identified research gaps and opportunities
+    - Specific suggestions for research differentiation
+    - Recommended modifications to improve novelty
     """
     try:
         # Validate required parameters
-        _validate_required_params(arguments, ['proposal_json'])
+        _validate_required_params(arguments, ['proposal'])
         
         provider, api_key = _get_provider_and_key(arguments)
         temperature = _get_temperature(arguments)
         
-        # Parse the proposal JSON
-        if isinstance(arguments['proposal_json'], str):
-            proposal = json.loads(arguments['proposal_json'])
-        else:
-            proposal = arguments['proposal_json']
-            
+        # Parse proposal if it's a JSON string
+        proposal = arguments['proposal']
+        if isinstance(proposal, str):
+            try:
+                proposal = json.loads(proposal)
+            except json.JSONDecodeError:
+                # If it's not valid JSON, treat it as a simple text proposal
+                proposal = {"description": proposal}
+        
+        max_papers = arguments.get('max_papers', 20)
+        
         agent = LiteratureAgent(api_key=api_key, provider=provider, temperature=temperature)
         result = agent.run_literature_search(research_idea=proposal)
         
-        return [JSONContent(content=asdict(result))]
+        return [TextContent(type="text", text=json.dumps(asdict(result)))]
         
     except Exception as e:
         return [TextContent(type="text", text=f"Error performing literature review: {str(e)}")]
 
 @server.call_tool()
-async def expert_feedback(arguments: Dict[str, Any]) -> List[TextContent | JSONContent]:
+async def expert_feedback(arguments: Dict[str, Any]) -> List[TextContent]:
     """
     Provides comprehensive expert peer review feedback simulating evaluation by an experienced astronomy professor.
     
-    This tool analyzes a research proposal from the perspective of an expert reviewer, providing
-    the type of detailed, constructive feedback typically received during academic peer review.
-    The AI acts as a senior astronomy professor with deep knowledge of research methodology,
-    scientific validity, and practical feasibility considerations.
+    This tool simulates the peer review process by providing detailed, constructive feedback
+    on a research proposal from multiple expert perspectives. The feedback covers scientific
+    rigor, methodology, feasibility, significance, and presentation quality.
     
-    The expert evaluation covers:
-    - Scientific validity and theoretical soundness
-    - Methodological appropriateness and rigor
-    - Feasibility given available resources and timeline
-    - Novelty and potential impact of the research
-    - Clarity and completeness of the proposal
+    The simulated expert review includes:
+    - Assessment of scientific significance and impact potential
+    - Evaluation of proposed methodology and approach
+    - Analysis of feasibility given stated resources and timeline
     - Identification of potential challenges and limitations
-    - Specific recommendations for improvement
+    - Suggestions for methodology improvements
+    - Recommendations for strengthening the proposal
+    - Overall assessment with specific scores and rankings
     
-    The feedback is structured to help researchers:
-    - Identify strengths to build upon
-    - Recognize potential weaknesses before starting
-    - Understand methodological considerations
-    - Gauge project feasibility realistically
-    - Improve proposal quality for funding applications
-    - Prepare for actual peer review processes
+    This feedback helps researchers anticipate potential reviewer concerns, improve their
+    proposals before submission, and ensure their research meets academic standards.
+    The review is designed to be constructive and actionable.
     
     Input Parameters:
-    - proposal_json (required): Complete structured research proposal as JSON object or string
-      Should include: title, research question, methodology, background, expected outcomes
-      May also include: skill_level, time_frame, available resources for context
-      Typically this is the output from generate_idea or structure_idea tools
-    - provider (optional): LLM provider for analysis ("google", "azure", "claude") - defaults to "google"
-    - temperature (optional): LLM temperature for evaluation (0.0-1.0) - defaults to 0.5
+    - proposal (required): The research proposal to review (JSON string or object)
+      Should be a structured proposal with methodology, timeline, resources, etc.
+      Can be output from previous pipeline steps or standalone proposals
+    - review_depth (optional): Depth of review analysis
+      Options: "brief" (quick overview), "standard" (detailed review), "comprehensive" (exhaustive analysis)
+      Default: "standard"
+    - focus_areas (optional): Comma-separated areas to emphasize in review
+      Examples: "methodology,feasibility", "significance,novelty", "presentation,clarity"
+      Default: covers all standard review areas
+    - provider (optional): LLM provider to use ("google", "azure", "claude") - defaults to "google"
+    - temperature (optional): LLM temperature for feedback generation (0.0-1.0) - defaults to 0.5
     
     Returns:
-    JSON object containing:
-    - scientific_validity: Dict with 'strengths' and 'concerns' arrays for scientific aspects
-    - methodology: Dict with 'strengths' and 'concerns' arrays for methodological aspects
-    - novelty_assessment: Detailed evaluation of research novelty and originality
-    - impact_assessment: Analysis of potential scientific impact and significance
-    - feasibility_assessment: Evaluation of project feasibility given constraints
-    - recommendations: Array of specific, actionable improvement suggestions
-    - summary: Overall assessment with clear recommendation on proceeding
-    
-    Use this feedback in combination with literature review results for comprehensive evaluation.
+    JSON object containing structured expert feedback with:
+    - Overall assessment scores and recommendations
+    - Detailed comments on each aspect of the proposal
+    - Specific suggestions for improvement
+    - Identified strengths and weaknesses
+    - Recommendations for next steps
     """
     try:
         # Validate required parameters
-        _validate_required_params(arguments, ['proposal_json'])
+        _validate_required_params(arguments, ['proposal'])
         
         provider, api_key = _get_provider_and_key(arguments)
         temperature = _get_temperature(arguments)
-
-        # Parse the proposal JSON
-        if isinstance(arguments['proposal_json'], str):
-            proposal = json.loads(arguments['proposal_json'])
-        else:
-            proposal = arguments['proposal_json']
-            
+        
+        # Parse proposal if it's a JSON string
+        proposal = arguments['proposal']
+        if isinstance(proposal, str):
+            try:
+                proposal = json.loads(proposal)
+            except json.JSONDecodeError:
+                proposal = {"description": proposal}
+        
         agent = AstronomyReflectionAgent(api_key=api_key, provider=provider, temperature=temperature)
         result = agent.provide_feedback(research_proposal=proposal)
         
-        return [JSONContent(content=asdict(result))]
+        return [TextContent(type="text", text=json.dumps(asdict(result)))]
         
     except Exception as e:
         return [TextContent(type="text", text=f"Error generating expert feedback: {str(e)}")]
 
 @server.call_tool()
-async def improve_idea(arguments: Dict[str, Any]) -> List[TextContent | JSONContent]:
+async def improve_idea(arguments: Dict[str, Any]) -> List[TextContent]:
     """
     Generates an enhanced version of a research proposal by incorporating expert feedback and literature insights.
     
-    This tool takes an original research proposal and systematically improves it based on:
-    - Expert peer review feedback (from expert_feedback tool)
-    - Literature review insights (from literature_review tool, optional)
-    - Best practices in research design and methodology
+    This tool takes the results from literature review and expert feedback to create an
+    improved version of the original research proposal. It intelligently incorporates
+    suggestions, addresses identified weaknesses, and enhances the overall quality and
+    feasibility of the research plan.
     
-    The improvement process addresses:
-    - Scientific validity concerns raised by expert review
-    - Methodological weaknesses and gaps
-    - Novelty and differentiation opportunities from literature
-    - Feasibility issues and practical constraints
-    - Clarity and completeness of the proposal
+    The improvement process includes:
+    - Integration of literature review findings and gap analysis
+    - Incorporation of expert feedback and recommendations
+    - Resolution of identified methodology concerns
+    - Enhancement of research questions and hypotheses
+    - Refinement of timelines and resource allocation
+    - Strengthening of scientific justification
+    - Improvement of overall presentation and clarity
     
-    The tool produces a refined proposal that:
-    - Incorporates suggested improvements
-    - Addresses identified concerns and limitations
-    - Enhances methodological rigor
-    - Improves scientific justification
-    - Increases likelihood of success and impact
-    
-    This is typically the final step in the research idea development pipeline,
-    producing a polished proposal ready for implementation or funding applications.
+    This creates a refined, publication-ready research proposal that addresses peer
+    review concerns and leverages current knowledge in the field. The improved proposal
+    maintains the core vision while enhancing scientific rigor and feasibility.
     
     Input Parameters:
-    - original_proposal_json (required): The initial research proposal as JSON object or string
-      This is typically output from generate_idea or structure_idea tools
-    - reflection_json (required): Expert feedback as JSON object or string
-      This must be output from the expert_feedback tool
-    - literature_json (optional): Literature review results as JSON object or string
-      If provided, should be output from the literature_review tool
-      Including this enhances the improvement process with literature insights
-    - provider (optional): LLM provider for improvement ("google", "azure", "claude") - defaults to "google"
-    - temperature (optional): LLM temperature for revision (0.0-1.0) - defaults to 0.5
+    - original_proposal (required): The initial research proposal (JSON string or object)
+      Should be the original structured proposal that needs improvement
+    - expert_feedback (required): Expert review feedback (JSON string or object)
+      Should be output from the 'expert_feedback' tool
+    - literature_feedback (required): Literature review results (JSON string or object)
+      Should be output from the 'literature_review' tool
+    - improvement_focus (optional): Areas to prioritize for improvement
+      Examples: "methodology", "novelty", "feasibility", "significance"
+      Default: addresses all feedback areas equally
+    - provider (optional): LLM provider to use ("google", "azure", "claude") - defaults to "google"
+    - temperature (optional): LLM temperature for improvement generation (0.0-1.0) - defaults to 0.5
     
     Returns:
-    JSON object containing the improved research proposal with the same structure as the original
-    but with enhanced content addressing the feedback. All sections are refined and expanded
-    based on the provided recommendations.
-    
-    Typical workflow:
-    1. generate_idea or structure_idea → original proposal
-    2. expert_feedback → expert analysis  
-    3. literature_review → literature insights (optional)
-    4. improve_idea → final enhanced proposal
+    JSON object containing the improved research proposal with:
+    - Enhanced methodology addressing expert concerns
+    - Refined research questions based on literature gaps
+    - Improved timeline and resource allocation
+    - Strengthened scientific justification
+    - Better integration with current research landscape
     """
     try:
         # Validate required parameters
-        _validate_required_params(arguments, [
-            'original_proposal_json', 'reflection_json'
-        ])
+        _validate_required_params(arguments, ['original_proposal', 'expert_feedback', 'literature_feedback'])
         
         provider, api_key = _get_provider_and_key(arguments)
         temperature = _get_temperature(arguments)
-
-        # Parse JSON inputs
-        if isinstance(arguments['original_proposal_json'], str):
-            original_proposal = json.loads(arguments['original_proposal_json'])
-        else:
-            original_proposal = arguments['original_proposal_json']
-            
-        if isinstance(arguments['reflection_json'], str):
-            reflection = json.loads(arguments['reflection_json'])
-        else:
-            reflection = arguments['reflection_json']
-            
-        literature = None
-        if arguments.get('literature_json'):
-            if isinstance(arguments['literature_json'], str):
-                literature = json.loads(arguments['literature_json'])
-            else:
-                literature = arguments['literature_json']
-
-        # This tool requires manually setting the agent's internal state
+        
+        # Parse JSON inputs if they're strings
+        def parse_input(data):
+            if isinstance(data, str):
+                try:
+                    return json.loads(data)
+                except json.JSONDecodeError:
+                    return {"description": data}
+            return data
+        
+        original_proposal = parse_input(arguments['original_proposal'])
+        expert_feedback = parse_input(arguments['expert_feedback'])
+        literature_feedback = parse_input(arguments['literature_feedback'])
+        
         agent = IdeaAgent(api_key=api_key, provider=provider, temperature=temperature)
-        agent.current_idea = original_proposal
+        result = agent.improve_idea(reflection_feedback=expert_feedback, literature_feedback=literature_feedback)
         
-        result = agent.improve_idea(reflection_feedback=reflection, literature_feedback=literature)
-        
-        return [JSONContent(content=result)]
+        return [TextContent(type="text", text=json.dumps(result))]
         
     except Exception as e:
         return [TextContent(type="text", text=f"Error improving idea: {str(e)}")]
 
 @server.call_tool()
-async def full_pipeline(arguments: Dict[str, Any]) -> List[TextContent | JSONContent]:
+async def full_pipeline(arguments: Dict[str, Any]) -> List[TextContent]:
     """
     Executes the complete end-to-end research idea development pipeline in a single operation.
     
-    This comprehensive tool takes a raw research idea and processes it through the entire
-    refinement pipeline, producing a complete analysis and final improved proposal. It
-    orchestrates all the individual tools in sequence:
+    This tool provides a comprehensive, automated workflow that takes either a raw user idea
+    or basic parameters and produces a fully-developed, peer-reviewed research proposal.
+    It combines all the individual tools in a logical sequence to deliver a complete
+    research development experience.
     
-    Pipeline Steps:
-    1. STRUCTURE: Convert raw idea into formal research proposal
-    2. LITERATURE REVIEW: Search academic papers and assess novelty  
-    3. EXPERT FEEDBACK: Generate peer review-style evaluation
-    4. IMPROVEMENT: Create enhanced version incorporating all feedback
+    The full pipeline includes:
+    1. Idea Generation or Structuring: Creates or formalizes the initial research concept
+    2. Literature Review: Conducts comprehensive analysis of existing work
+    3. Expert Feedback: Provides detailed peer review assessment
+    4. Idea Improvement: Integrates feedback to create an enhanced proposal
+    5. Final Integration: Compiles all results into a comprehensive package
     
-    This tool is ideal when you want:
-    - Complete analysis without managing individual tool calls
-    - Consistent processing through all evaluation stages
-    - Comprehensive output including all intermediate results
-    - Streamlined workflow for idea development
+    This end-to-end approach ensures that the final research proposal is:
+    - Scientifically rigorous and well-grounded
+    - Novel and differentiated from existing work
+    - Methodologically sound and feasible
+    - Aligned with current research standards
+    - Ready for further development or submission
     
-    The full pipeline ensures all components work together cohesively and provides
-    the most thorough evaluation possible. It's particularly useful for:
-    - Initial idea evaluation and development
-    - Comprehensive research proposal preparation
-    - Educational purposes to see the complete process
-    - When you need all types of feedback simultaneously
+    The pipeline is especially useful for:
+    - Students developing their first research proposals
+    - Researchers exploring new fields or methodologies
+    - Quick prototyping of research concepts
+    - Comprehensive proposal development in one step
     
     Input Parameters:
-    - user_idea (required): Raw description of research idea in natural language
-      Can be informal, preliminary, or conversational. Examples:
-      "I want to use machine learning to find new exoplanets"
-      "What if we could predict solar flares using AI?"
-      "I'm curious about how galaxies form in the early universe"
-    - provider (optional): LLM provider to use ("google", "azure", "claude") - defaults to "google"
-    - temperature (optional): LLM temperature for all processing (0.0-1.0) - defaults to 0.5
+    Either provide a raw idea OR student profile parameters:
+    
+    For idea structuring:
+    - user_idea (required if no profile): Raw research idea description
+    
+    For idea generation:
+    - interests (required if no user_idea): Student's research interests (comma-separated)
+    - skill_level (required if no user_idea): Student's skill level
+    - resources (required if no user_idea): Available resources (comma-separated)
+    - time_frame (required if no user_idea): Project timeline
+    
+    Optional parameters for all modes:
+    - max_papers (optional): Maximum papers for literature review (default: 20)
+    - review_depth (optional): Expert review depth ("brief", "standard", "comprehensive")
+    - provider (optional): LLM provider ("google", "azure", "claude") - defaults to "google"
+    - temperature (optional): LLM temperature (0.0-1.0) - defaults to 0.5
     
     Returns:
-    Comprehensive JSON object containing:
-    - initial_proposal: The structured research proposal (from structure_idea)
-    - literature_review: Complete literature analysis with novelty assessment
-    - expert_feedback: Detailed peer review evaluation
+    JSON object containing complete pipeline results:
+    - initial_proposal: The starting research proposal
+    - literature_review: Comprehensive literature analysis and novelty assessment
+    - expert_feedback: Detailed peer review with scores and recommendations
     - improved_proposal: Final enhanced proposal incorporating all feedback
-    
-    Each section contains the full output from the corresponding individual tool,
-    providing complete transparency into the development process.
-    
-    Note: This tool requires internet access for literature search and may take
-    longer to complete than individual tools due to the comprehensive processing.
+    - pipeline_summary: Overview of improvements and key insights
     """
     try:
-        # Validate required parameters
-        _validate_required_params(arguments, ['user_idea'])
-        
         provider, api_key = _get_provider_and_key(arguments)
         temperature = _get_temperature(arguments)
-
-        # 1. Structure Idea
-        idea_agent = IdeaAgent(api_key=api_key, provider=provider, temperature=temperature)
-        structured_proposal = idea_agent.structure_and_rephrase_idea(user_idea=arguments['user_idea'])
         
-        # Hold the original proposal to be used by the improve_idea step
-        idea_agent.current_idea = structured_proposal.copy()
-
-        # 2. Literature Review
+        # Initialize agents
+        idea_agent = IdeaAgent(api_key=api_key, provider=provider, temperature=temperature)
         lit_agent = LiteratureAgent(api_key=api_key, provider=provider, temperature=temperature)
+        reflection_agent = AstronomyReflectionAgent(api_key=api_key, provider=provider, temperature=temperature)
+        
+        # Step 1: Generate or structure the initial proposal
+        if 'user_idea' in arguments:
+            # Structure existing idea
+            structured_proposal = idea_agent.structure_and_rephrase_idea(user_idea=arguments['user_idea'])
+        else:
+            # Generate new idea
+            _validate_required_params(arguments, ['interests', 'skill_level', 'resources', 'time_frame'])
+            interests = [i.strip() for i in arguments['interests'].split(',')]
+            resources = [r.strip() for r in arguments['resources'].split(',')]
+            
+            structured_proposal = idea_agent.generate_initial_idea(
+                student_interests=interests,
+                skill_level=arguments['skill_level'],
+                time_frame=arguments['time_frame'],
+                available_resources=resources
+            )
+        
+        # Step 2: Literature Review
         lit_feedback = lit_agent.run_literature_search(research_idea=structured_proposal)
-
-        # 3. Expert Feedback
-        reflect_agent = AstronomyReflectionAgent(api_key=api_key, provider=provider, temperature=temperature)
-        expert_feedback_result = reflect_agent.provide_feedback(research_proposal=structured_proposal)
-
-        # 4. Improve Idea
+        
+        # Step 3: Expert Feedback
+        expert_feedback_result = reflection_agent.provide_feedback(research_proposal=structured_proposal)
+        
+        # Step 4: Improve Idea
         improved_proposal = idea_agent.improve_idea(
             reflection_feedback=asdict(expert_feedback_result),
             literature_feedback=asdict(lit_feedback)
         )
-
+        
         # 5. Compile final result
         final_result = {
             "initial_proposal": structured_proposal,
@@ -494,7 +493,7 @@ async def full_pipeline(arguments: Dict[str, Any]) -> List[TextContent | JSONCon
             "improved_proposal": improved_proposal
         }
         
-        return [JSONContent(content=final_result)]
+        return [TextContent(type="text", text=json.dumps(final_result))]
         
     except Exception as e:
         return [TextContent(type="text", text=f"Error running full pipeline: {str(e)}")]
@@ -703,9 +702,8 @@ async def main():
             InitializationOptions(
                 server_name="astronomy-idea-assistant",
                 server_version="1.0.0",
-                capabilities=server.get_capabilities(
-                    notification_options=None,
-                    experimental_capabilities=None,
+                capabilities=ServerCapabilities(
+                    tools=ToolsCapability(listChanged=True)
                 ),
             ),
         )
