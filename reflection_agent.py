@@ -1,7 +1,7 @@
 import os
 import json
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # Import the LLMClient wrapper
 from llm_client import LLMClient
@@ -39,21 +39,21 @@ class ProposalFeedback:
     summary: str
     literature_insights: Optional[Dict[str, Any]] = None  # Added field for literature feedback
 
+@dataclass
 class AstronomyReflectionAgent:
-    """Expert astronomer agent that evaluates research proposals."""
+    """An agent that provides expert feedback on astronomy research proposals."""
+    api_key: str
+    provider: str = "google"
+    temperature: float = 0.5
+    llm_client: LLMClient = field(init=False)
 
-    def __init__(self, api_key, provider="azure", model=None):
-        """Initialize with an API key and provider."""
-        self.api_key = api_key
-        self.provider = provider
-        self.model = model
-        
-        # Initialize the LLM client with the appropriate provider
+    def __post_init__(self):
+        """Initialize the LLM client after the dataclass is created."""
         try:
-            self.llm_client = LLMClient(api_key, provider)
+            self.llm_client = LLMClient(self.api_key, self.provider, self.temperature)
         except ValueError as e:
-            raise ValueError(f"Error initializing reflection agent: {str(e)}")
-    
+            raise ValueError(f"Error initializing ReflectionAgent's LLM client: {str(e)}")
+
     def provide_feedback(self, research_proposal: Dict[str, Any]) -> ProposalFeedback:
         """
         Evaluates a structured research proposal and returns feedback.

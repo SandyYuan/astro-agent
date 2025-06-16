@@ -35,17 +35,22 @@ class LiteratureFeedback:
 class LiteratureAgent:
     """Agent that analyzes recent astronomy literature to evaluate idea novelty"""
     
-    def __init__(self, api_key, provider="azure", model=None):
-        """Initialize with an API key and provider"""
+    def __init__(self, api_key: str, provider: str = "google", temperature: float = 0.5):
+        """
+        Initializes the LiteratureAgent.
+        
+        Args:
+            api_key: The API key for the language model provider.
+            provider: The LLM provider (e.g., 'google', 'openai').
+            temperature: The temperature for the LLM.
+        """
         self.api_key = api_key
         self.provider = provider
-        self.model = model
-        
-        # Initialize the LLM client with the appropriate provider
+        self.temperature = temperature
         try:
-            self.llm_client = LLMClient(api_key, provider)
+            self.llm_client = LLMClient(self.api_key, self.provider, self.temperature)
         except ValueError as e:
-            raise ValueError(f"Error initializing literature agent: {str(e)}")
+            raise ValueError(f"Error initializing LiteratureAgent's LLM client: {str(e)}")
     
     def _simplify_query_with_llm(self, research_question: str) -> str:
         """Uses an LLM to distill a research question into a keyword query."""

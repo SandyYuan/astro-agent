@@ -4,22 +4,24 @@ import os
 class LLMClient:
     """Wrapper for LLM clients to provide a consistent interface"""
     
-    def __init__(self, api_key: str, provider: str = "azure"):
+    def __init__(self, api_key: str, provider: str = "azure", temperature: float = 0.5):
         """Initialize the LLM client with the appropriate provider
         
         Args:
             api_key: API key for the selected provider
             provider: 'azure', 'google', or 'claude'
+            temperature: Temperature for generation
         """
         self.api_key = api_key
         self.provider = provider
+        self.temperature = temperature
         
         if provider == "google":
             try:
                 from google import genai
                 self.client = genai.Client(api_key=api_key)
             except ImportError:
-                raise ImportError("googleai is not installed")
+                raise ImportError("google-generativeai is not installed")
         elif provider == "azure":
             try:
                 from langchain_openai import AzureChatOpenAI
@@ -28,7 +30,8 @@ class LLMClient:
                     azure_endpoint="https://utbd-omodels-advanced.openai.azure.com",
                     azure_deployment="o1",
                     api_version="2025-01-01-preview",
-                    api_key=api_key
+                    api_key=api_key,
+                    temperature=self.temperature
                 )
             except ImportError:
                 raise ImportError("langchain_openai is not installed")
@@ -41,24 +44,26 @@ class LLMClient:
         else:
             raise ValueError(f"Unsupported provider: {provider}")
     
-    def generate(self, prompt: str, temperature: float = 0.5) -> str:
+    def generate(self, prompt: str) -> str:
         """Alias for generate_content for compatibility."""
-        return self.generate_content(prompt, temperature)
+        return self.generate_content(prompt)
 
-    def generate_content(self, prompt: str, temperature: float = 0.7) -> str:
+    def generate_content(self, prompt: str) -> str:
         """Generate content using the configured LLM
         
         Args:
             prompt: The prompt to send to the LLM
-            temperature: Temperature for generation
             
         Returns:
             Generated text response
         """
         if self.provider == "google":
+            from google.genai import types
+            config = types.GenerateContentConfig(temperature=self.temperature)
             response = self.client.models.generate_content(
                 model="gemini-2.5-pro-preview-06-05", 
-                contents=prompt
+                contents=prompt,
+                config=config
             )
             return response.text
         elif self.provider == "azure":
@@ -70,6 +75,7 @@ class LLMClient:
             response = self.client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=4096,
+                temperature=self.temperature,
                 messages=[
                     {
                         "role": "user",

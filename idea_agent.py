@@ -17,13 +17,14 @@ from llm_client import LLMClient
 
 class IdeaAgent:
     """Stateful agent that generates and improves astronomy research ideas."""
-    def __init__(self, api_key, provider="azure"):
-        self.api_key = api_key # Keep api_key for potential future use if needed directly
+    def __init__(self, api_key, provider="google", temperature=0.5):
+        self.api_key = api_key
         self.provider = provider
+        self.temperature = temperature
         
         # Initialize the LLM client with the appropriate provider
         try:
-            self.llm_client = LLMClient(api_key, provider)
+            self.llm_client = LLMClient(api_key, provider, temperature=self.temperature)
         except ValueError as e:
             raise ValueError(f"Error initializing idea agent: {str(e)}")
                 

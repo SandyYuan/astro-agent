@@ -57,6 +57,9 @@ def initialize_session_state():
     if 'api_key' not in st.session_state:
         st.session_state.api_key = ''
     
+    if 'temperature' not in st.session_state:
+        st.session_state.temperature = 0.5
+    
     if 'skip_literature_review' not in st.session_state:
         st.session_state.skip_literature_review = False
         
@@ -79,6 +82,7 @@ def reset_state(mode='iteration'):
     # Keep API key and provider
     api_key = st.session_state.api_key
     provider = st.session_state.provider
+    temperature = st.session_state.temperature
     
     # Reset everything else
     st.session_state.messages = []
@@ -98,6 +102,7 @@ def reset_state(mode='iteration'):
     # Restore API key and provider
     st.session_state.api_key = api_key
     st.session_state.provider = provider
+    st.session_state.temperature = temperature
 
 
 def update_interests():
@@ -154,17 +159,52 @@ def toggle_literature_review():
     st.session_state.skip_literature_review = st.session_state.skip_lit_review_checkbox
 
 
+def initialize_or_update_agents():
+    """
+    Initializes or updates agents if their configuration (provider, temperature) has changed.
+    This ensures that changes made in the UI are applied to the agents.
+    """
+    provider = st.session_state.provider
+    api_key = st.session_state.api_key
+    temperature = st.session_state.temperature
+
+    # List of agent configurations
+    agent_configs = [
+        {'name': 'idea_agent', 'class': IdeaAgent},
+        {'name': 'reflection_agent', 'class': AstronomyReflectionAgent},
+        {'name': 'literature_agent', 'class': LiteratureAgent, 'skip_key': 'skip_literature_review'}
+    ]
+
+    for config in agent_configs:
+        agent_name = config['name']
+        agent_class = config['class']
+        skip_key = config.get('skip_key')
+
+        # Skip literature agent if the checkbox is checked
+        if skip_key and st.session_state.get(skip_key, False):
+            st.session_state[agent_name] = None
+            continue
+
+        current_agent = st.session_state.get(agent_name)
+
+        # Check if agent needs to be re-initialized
+        if (not current_agent or
+            current_agent.provider != provider or
+            current_agent.temperature != temperature or
+            current_agent.api_key != api_key):
+            
+            st.session_state[agent_name] = agent_class(
+                api_key=api_key, 
+                provider=provider, 
+                temperature=temperature
+            )
+
+
 def run_refinement_pipeline(user_idea: str) -> tuple[Optional[Dict], Optional[LiteratureFeedback], Optional[ProposalFeedback], Optional[Dict]]:
     """
     Runs the full refinement pipeline and returns the structured data.
     """
-    # Ensure agents are initialized
-    if not st.session_state.idea_agent:
-        st.session_state.idea_agent = IdeaAgent(st.session_state.api_key, provider=st.session_state.provider)
-    if not st.session_state.reflection_agent:
-        st.session_state.reflection_agent = AstronomyReflectionAgent(st.session_state.api_key, provider=st.session_state.provider)
-    if not st.session_state.literature_agent and not st.session_state.skip_literature_review:
-        st.session_state.literature_agent = LiteratureAgent(st.session_state.api_key, provider=st.session_state.provider)
+    initialize_or_update_agents()
 
     structured_idea, literature_feedback, reflection, improved_idea = None, None, None, None
 
@@ -225,13 +265,7 @@ def run_generation_pipeline() -> tuple[Optional[Dict], Optional[LiteratureFeedba
     """
     Runs the full idea generation pipeline from scratch.
     """
-    # Ensure agents are initialized
-    if not st.session_state.idea_agent:
-        st.session_state.idea_agent = IdeaAgent(st.session_state.api_key, provider=st.session_state.provider)
-    if not st.session_state.reflection_agent:
-        st.session_state.reflection_agent = AstronomyReflectionAgent(st.session_state.api_key, provider=st.session_state.provider)
-    if not st.session_state.literature_agent and not st.session_state.skip_literature_review:
-        st.session_state.literature_agent = LiteratureAgent(st.session_state.api_key, provider=st.session_state.provider)
+    initialize_or_update_agents()
 
     structured_idea, literature_feedback, reflection, improved_idea = None, None, None, None
 
@@ -410,6 +444,37 @@ def main():
             type="password",
             key="api_key_input",
             value=st.session_state.api_key
+        )
+
+        def update_temperature():
+            slider_value = st.session_state.temp_slider
+            provider = st.session_state.provider
+            if provider == 'google':
+                # Scale 0.0-1.0 to 0.0-1.0 for the API
+                st.session_state.temperature = slider_value
+            else:
+                st.session_state.temperature = slider_value
+
+        # Find the initial slider value that corresponds to the current temperature
+        current_temp = st.session_state.temperature
+        provider = st.session_state.provider
+
+        # Adjust temperature if it's out of range for the new provider
+        if provider != 'google' and current_temp > 1.0:
+            st.session_state.temperature = 1.0
+            current_temp = 1.0
+        
+        initial_slider_value = current_temp
+
+        st.slider(
+            "Creativity (Temperature)",
+            min_value=0.0,
+            max_value=1.0,
+            value=initial_slider_value,
+            step=0.1,
+            key='temp_slider',
+            on_change=update_temperature,
+            help="Controls the randomness of the output. Higher values are more creative."
         )
 
         col1, col2 = st.columns(2)
