@@ -4,6 +4,9 @@ Example script demonstrating how to use the Astronomy Research Assistant MCP ser
 
 This script shows how to call the various tools provided by the MCP server.
 In practice, you would use an MCP client library to interact with the server.
+
+Note: API keys are now configured via environment variables at the server level,
+not passed with each tool call.
 """
 
 import json
@@ -15,9 +18,8 @@ from typing import Dict, Any
 def example_generate_idea():
     """Example of how to generate a research idea."""
     return {
-        "provider": "google",
-        "api_key": "your-api-key-here",
-        "temperature": 0.7,
+        "provider": "google",  # optional, defaults to "google"
+        "temperature": 0.7,    # optional, defaults to 0.5
         "interests": "galaxy formation, cosmology, dark matter",
         "skill_level": "undergraduate",
         "resources": "Python, public datasets, university computing cluster",
@@ -28,9 +30,8 @@ def example_generate_idea():
 def example_structure_idea():
     """Example of how to structure a raw research idea."""
     return {
-        "provider": "google", 
-        "api_key": "your-api-key-here",
-        "temperature": 0.5,
+        "provider": "google",  # optional, defaults to "google"
+        "temperature": 0.5,    # optional, defaults to 0.5
         "user_idea": "I want to study how galaxies form in the early universe using machine learning to analyze telescope data"
     }
 
@@ -50,9 +51,8 @@ def example_literature_review():
     }
     
     return {
-        "provider": "google",
-        "api_key": "your-api-key-here",
-        "temperature": 0.5,
+        "provider": "google",  # optional, defaults to "google"
+        "temperature": 0.5,    # optional, defaults to 0.5
         "proposal_json": json.dumps(proposal)
     }
 
@@ -74,9 +74,8 @@ def example_expert_feedback():
     }
     
     return {
-        "provider": "google",
-        "api_key": "your-api-key-here", 
-        "temperature": 0.5,
+        "provider": "google",  # optional, defaults to "google"
+        "temperature": 0.5,    # optional, defaults to 0.5
         "proposal_json": json.dumps(proposal)
     }
 
@@ -116,9 +115,8 @@ def example_improve_idea():
     }
     
     return {
-        "provider": "google",
-        "api_key": "your-api-key-here",
-        "temperature": 0.5,
+        "provider": "google",  # optional, defaults to "google"
+        "temperature": 0.5,    # optional, defaults to 0.5
         "original_proposal_json": json.dumps(original_proposal),
         "reflection_json": json.dumps(expert_feedback),
         # literature_json is optional
@@ -128,9 +126,8 @@ def example_improve_idea():
 def example_full_pipeline():
     """Example of running the full pipeline."""
     return {
-        "provider": "google",
-        "api_key": "your-api-key-here",
-        "temperature": 0.5,
+        "provider": "google",  # optional, defaults to "google"
+        "temperature": 0.5,    # optional, defaults to 0.5
         "user_idea": "I want to use artificial intelligence to discover new types of stars by analyzing spectra from large sky surveys"
     }
 
@@ -168,8 +165,15 @@ if __name__ == "__main__":
     print_examples()
     
     print("\nTo run the MCP server:")
+    print("# Set your API keys as environment variables:")
+    print("export GEMINI_API_KEY='your-gemini-key'")
+    print("export ANTHROPIC_API_KEY='your-anthropic-key'")
+    print("export OPENAI_API_KEY='your-openai-key'")
+    print("\n# Then run the server:")
     print("python mcp_server.py")
     print("\nTo interact with the server, use an MCP client or integrate with tools like:")
     print("- Claude Desktop")
-    print("- VS Code with MCP extension") 
-    print("- Custom MCP client applications") 
+    print("- VS Code with MCP extension")
+    print("- Custom MCP client applications")
+    print("\nNote: API keys are configured at the server level via environment variables,")
+    print("not passed with individual tool calls.") 

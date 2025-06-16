@@ -6,14 +6,15 @@ This directory contains a Model Context Protocol (MCP) server that exposes the A
 
 The MCP server wraps the core functionality of the Astronomy Research Assistant into standardized tools that can be used by any MCP-compatible client. This allows other AI agents to leverage the astronomy research capabilities programmatically.
 
+**API Key Configuration**: API keys are configured at the server level via environment variables, not passed with individual tool calls. This provides better security and usability.
+
 ## Available Tools
 
 ### 1. `generate_idea`
 Generates a novel and structured astronomy research idea based on student profile.
 
 **Parameters:**
-- `provider` (required): LLM provider ("google", "azure", "claude")
-- `api_key` (required): API key for the selected provider
+- `provider` (optional): LLM provider ("google", "azure", "claude") - defaults to "google"
 - `temperature` (optional): Temperature for the LLM (default: 0.5)
 - `interests` (required): Comma-separated list of student interests
 - `skill_level` (required): Student's skill level (e.g., "undergraduate", "graduate")
@@ -24,8 +25,7 @@ Generates a novel and structured astronomy research idea based on student profil
 Takes a raw, unstructured user idea and formalizes it into a structured research proposal.
 
 **Parameters:**
-- `provider` (required): LLM provider
-- `api_key` (required): API key for the selected provider
+- `provider` (optional): LLM provider - defaults to "google"
 - `temperature` (optional): Temperature for the LLM
 - `user_idea` (required): The raw user idea string to structure
 
@@ -33,8 +33,7 @@ Takes a raw, unstructured user idea and formalizes it into a structured research
 Performs a literature search against Semantic Scholar to assess novelty and provide context.
 
 **Parameters:**
-- `provider` (required): LLM provider
-- `api_key` (required): API key for the selected provider
+- `provider` (optional): LLM provider - defaults to "google"
 - `temperature` (optional): Temperature for the LLM
 - `proposal_json` (required): Research proposal as JSON string or object
 
@@ -42,8 +41,7 @@ Performs a literature search against Semantic Scholar to assess novelty and prov
 Provides expert peer review feedback simulating review from an experienced professor.
 
 **Parameters:**
-- `provider` (required): LLM provider
-- `api_key` (required): API key for the selected provider
+- `provider` (optional): LLM provider - defaults to "google"
 - `temperature` (optional): Temperature for the LLM
 - `proposal_json` (required): Research proposal as JSON string or object
 
@@ -51,8 +49,7 @@ Provides expert peer review feedback simulating review from an experienced profe
 Generates an improved version of a research proposal based on expert and literature feedback.
 
 **Parameters:**
-- `provider` (required): LLM provider
-- `api_key` (required): API key for the selected provider
+- `provider` (optional): LLM provider - defaults to "google"
 - `temperature` (optional): Temperature for the LLM
 - `original_proposal_json` (required): Original research proposal as JSON
 - `reflection_json` (required): Expert feedback as JSON
@@ -62,8 +59,7 @@ Generates an improved version of a research proposal based on expert and literat
 Executes the complete research idea refinement pipeline from raw idea to improved proposal.
 
 **Parameters:**
-- `provider` (required): LLM provider
-- `api_key` (required): API key for the selected provider
+- `provider` (optional): LLM provider - defaults to "google"
 - `temperature` (optional): Temperature for the LLM
 - `user_idea` (required): The raw user idea to process through the full pipeline
 
@@ -74,10 +70,15 @@ Executes the complete research idea refinement pipeline from raw idea to improve
 pip install -r requirements.txt
 ```
 
-2. Ensure you have API keys for your chosen LLM provider:
-   - **Google**: Gemini API key
-   - **Azure**: Azure OpenAI API key
-   - **Claude**: Anthropic API key
+2. Set up your API keys as environment variables:
+```bash
+# Choose one or more providers
+export GEMINI_API_KEY='your-gemini-api-key'
+export ANTHROPIC_API_KEY='your-anthropic-api-key'
+export OPENAI_API_KEY='your-openai-api-key'
+```
+
+**Note**: You only need to set the API key for the provider(s) you plan to use. The server will automatically detect which providers are available.
 
 ## Running the Server
 
@@ -86,18 +87,20 @@ Start the MCP server:
 python mcp_server.py
 ```
 
-The server will run and listen for MCP protocol messages via stdin/stdout.
+The server will:
+1. Load API keys from environment variables
+2. Display which providers are available
+3. Listen for MCP protocol messages via stdin/stdout
 
 ## Usage Examples
 
 See `mcp_example.py` for detailed examples of how to call each tool. Here's a basic example:
 
 ```python
-# Example tool call for generating an idea
+# Example tool call for generating an idea (no API key needed in the call)
 {
-    "provider": "google",
-    "api_key": "your-api-key-here",
-    "temperature": 0.7,
+    "provider": "google",  # optional, defaults to "google"
+    "temperature": 0.7,    # optional, defaults to 0.5
     "interests": "galaxy formation, cosmology, dark matter",
     "skill_level": "undergraduate", 
     "resources": "Python, public datasets, university computing cluster",
@@ -116,17 +119,22 @@ Add to your Claude Desktop configuration:
   "mcpServers": {
     "astronomy-research": {
       "command": "python",
-      "args": ["/path/to/mcp_server.py"]
+      "args": ["/path/to/mcp_server.py"],
+      "env": {
+        "GEMINI_API_KEY": "your-gemini-key",
+        "ANTHROPIC_API_KEY": "your-anthropic-key",
+        "OPENAI_API_KEY": "your-openai-key"
+      }
     }
   }
 }
 ```
 
 ### VS Code MCP Extension
-Configure the extension to point to this server executable.
+Configure the extension to point to this server executable and set environment variables in your system or IDE settings.
 
 ### Custom Applications
-Use any MCP client library to connect to this server and call its tools programmatically.
+Use any MCP client library to connect to this server and call its tools programmatically. Set the API keys as environment variables before starting the server.
 
 ## Architecture
 
@@ -142,9 +150,11 @@ Each tool is implemented as an async function decorated with `@server.call_tool(
 
 All tools include comprehensive error handling and will return informative error messages if:
 - Required parameters are missing
-- API keys are invalid
+- No API key is configured for the requested provider
 - LLM requests fail
 - JSON parsing errors occur
+
+The server will suggest available providers if an unsupported provider is requested.
 
 ## Output Format
 
@@ -169,10 +179,18 @@ To extend the server with additional tools:
 - Ensure all dependencies are installed
 - Check that Python version is 3.8+
 
-**Tool calls fail:**
-- Verify API keys are valid and have sufficient quota
-- Check that all required parameters are provided
-- Review error messages for specific issues
+**No API keys found warning:**
+- Set at least one API key environment variable
+- Use `export GEMINI_API_KEY='your-key'` or similar
+- Restart the server after setting environment variables
+
+**Tool calls fail with "No API key configured":**
+- Verify the correct environment variable name for your provider:
+  - Google: `GEMINI_API_KEY`
+  - Anthropic: `ANTHROPIC_API_KEY`
+  - OpenAI/Azure: `OPENAI_API_KEY` or `AZURE_OPENAI_API_KEY`
+- Check that API keys are valid and have sufficient quota
+- Try a different provider if available
 
 **Literature search fails:**
 - Semantic Scholar API may be rate-limited or unavailable

@@ -1,10 +1,10 @@
-# AI Astronomy Research Assistant
+# AI Astronomy Idea Assistant
 
-An AI-powered application that helps astronomy students generate and refine research ideas through iterative feedback and analysis.
+An AI agent that collaborate with human astronomers generate and refine research ideas through iterative feedback and analysis. We also provide an MCP interface that allows our functionalities to be incorporated into a larger agentic system. 
 
 ## Overview
 
-This application acts as an AI-powered partner for astronomy students, transforming rough concepts into structured, scientifically-grounded proposals. It operates in two modes:
+This agent is a research teammate, transforming rough concepts into structured, scientifically-grounded proposals. It operates in two modes:
 
 1.  **Idea Iteration Mode**: Engage in a stateful conversation to collaboratively refine your own research idea. The AI remembers the context of the conversation, allowing you to iteratively improve the proposal with follow-up messages.
 2.  **Idea Generation Mode**: Let the AI generate a novel research idea from scratch based on your specified interests, skill level, and available resources.
@@ -12,6 +12,85 @@ This application acts as an AI-powered partner for astronomy students, transform
 In both modes, the system uses a pipeline of specialized AI agents to structure the idea, review relevant literature, provide expert feedback, and present an improved proposal.
 
 > **Recommendation**: We recommend using a powerful, up-to-date model like Google Gemini 1.5 Pro or Claude 3.5 Sonnet as the LLM backbone for this application.
+
+## MCP Server
+
+We provide a **Model Context Protocol (MCP) server** that exposes all our functionality as standardized tools. This allows other AI agents and applications to programmatically access our research capabilities through the MCP protocol.
+
+### Available MCP Tools
+
+The MCP server provides six primary tools:
+
+1. **`generate_idea`** - Generate novel research ideas from student profiles
+2. **`structure_idea`** - Convert raw ideas into structured research proposals  
+3. **`literature_review`** - Perform Semantic Scholar literature searches and novelty assessment
+4. **`expert_feedback`** - Get simulated peer review feedback from an expert perspective
+5. **`improve_idea`** - Enhance proposals by incorporating expert and literature feedback
+6. **`full_pipeline`** - Execute the complete idea refinement workflow end-to-end
+
+### Quick Start with MCP
+
+1. **Install MCP dependencies:**
+   ```bash
+   pip install -r requirements.txt  # includes mcp library
+   ```
+
+2. **Configure API keys as environment variables:**
+   ```bash
+   export GEMINI_API_KEY='your-gemini-key'
+   export ANTHROPIC_API_KEY='your-anthropic-key'
+   export OPENAI_API_KEY='your-openai-key'
+   ```
+
+3. **Run the MCP server:**
+   ```bash
+   python mcp_server.py
+   ```
+
+4. **Connect MCP clients** like Claude Desktop, cursor, or custom applications.
+
+### Integration Examples
+
+**Claude Desktop Configuration:**
+```json
+{
+  "mcpServers": {
+    "astronomy-idea-assistant": {
+      "command": "python",
+      "args": ["/path/to/astro-agent/mcp_server.py"],
+      "env": {
+        "GEMINI_API_KEY": "your-gemini-key",
+        "ANTHROPIC_API_KEY": "your-anthropic-key",
+        "OPENAI_API_KEY": "your-openai-key"
+      }
+    }
+  }
+}
+```
+
+**Example Tool Call:**
+```json
+{
+  "tool": "generate_idea",
+  "arguments": {
+    "provider": "google",
+    "interests": "galaxy formation, cosmology, dark matter",
+    "skill_level": "undergraduate",
+    "resources": "Python, public datasets, university computing cluster",
+    "time_frame": "1 year"
+  }
+}
+```
+
+### Benefits of MCP Integration
+
+- **Programmatic Access**: Call astronomy research tools from any MCP-compatible application
+- **Agent Composition**: Integrate with larger AI agent systems and workflows
+- **Standardized Interface**: Use consistent MCP protocol instead of custom APIs
+- **Scalable Architecture**: Deploy as a service that multiple clients can access
+- **Secure Configuration**: API keys configured at server level, not passed with each call
+
+For detailed MCP server documentation, examples, and troubleshooting, see [`MCP_README.md`](MCP_README.md) and [`mcp_example.py`](mcp_example.py).
 
 ## Key Features
 
@@ -41,8 +120,8 @@ The application consists of three primary AI agents working in a pipeline:
 
 1.  Clone this repository:
     ```bash
-    git clone https://github.com/your-username/astronomy-idea-refiner.git
-    cd astronomy-idea-refiner
+    git clone https://github.com/SandyYuan/astro-agent.git
+    cd astro-agent
     ```
 
 2.  Install the required dependencies:
@@ -102,18 +181,6 @@ The `ReflectionAgent` acts as an expert reviewer. It assesses the structured pro
 ### LiteratureAgent
 
 The `LiteratureAgent` provides real-world context by searching the Semantic Scholar database for recent papers relevant to the user's idea. It analyzes the search results to assess the idea's novelty and suggests ways the student can differentiate their work from existing research.
-
-## Supported LLM Providers
-
-The application supports multiple LLM providers, including:
-
--   **Google Gemini** (e.g., `gemini-1.5-pro-latest`)
--   **Anthropic Claude** (e.g., `claude-3.5-sonnet-20240620`)
--   **Azure OpenAI Service**
-
-## Future Work
-
-The current conversational memory is implemented via a simple cache. A more robust and flexible approach would be to refactor the application into a **ReAct (Reasoning + Acting) Agent** architecture. This would allow the AI to dynamically choose which tools (e.g., literature search, reflection) to use based on the conversation, leading to more complex and intelligent interactions. A detailed plan for this is documented in `REACT_AGENT_REFACTOR.md`.
 
 ## Contributing
 

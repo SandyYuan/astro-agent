@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from typing import Dict, Any, List, Optional
 from dataclasses import asdict
 
@@ -26,6 +27,27 @@ from llm_client import LLMClient
 # Global server instance
 server = Server("astronomy-research-assistant")
 
+# Global API key storage
+API_KEYS = {
+    'google': None,
+    'azure': None, 
+    'claude': None
+}
+
+def _load_api_keys():
+    """Load API keys from environment variables."""
+    API_KEYS['google'] = os.getenv('GEMINI_API_KEY')
+    API_KEYS['azure'] = os.getenv('AZURE_OPENAI_API_KEY') or os.getenv('OPENAI_API_KEY')
+    API_KEYS['claude'] = os.getenv('ANTHROPIC_API_KEY')
+    
+    # Print which keys were found (without revealing the actual keys)
+    loaded_keys = [provider for provider, key in API_KEYS.items() if key is not None]
+    if loaded_keys:
+        print(f"Loaded API keys for providers: {', '.join(loaded_keys)}")
+    else:
+        print("Warning: No API keys found in environment variables")
+        print("Set GEMINI_API_KEY, ANTHROPIC_API_KEY, and/or OPENAI_API_KEY environment variables")
+
 # --- Helper Functions ---
 
 def _validate_required_params(params: Dict[str, Any], required: List[str]) -> None:
@@ -35,11 +57,17 @@ def _validate_required_params(params: Dict[str, Any], required: List[str]) -> No
         raise ValueError(f"Missing required parameters: {', '.join(missing)}")
 
 def _get_provider_and_key(params: Dict[str, Any]) -> tuple[str, str]:
-    """Extracts provider and api_key from parameters."""
+    """Extracts provider and gets the corresponding API key from server config."""
     provider = params.get('provider', 'google')
-    api_key = params.get('api_key')
+    api_key = API_KEYS.get(provider)
+    
     if not api_key:
-        raise ValueError(f"API key for provider '{provider}' must be provided.")
+        available_providers = [p for p, k in API_KEYS.items() if k is not None]
+        if available_providers:
+            raise ValueError(f"No API key configured for provider '{provider}'. Available providers: {', '.join(available_providers)}")
+        else:
+            raise ValueError(f"No API keys configured. Please set environment variables: GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY")
+    
     return provider, api_key
 
 def _get_temperature(params: Dict[str, Any]) -> float:
@@ -57,7 +85,7 @@ async def generate_idea(arguments: Dict[str, Any]) -> List[TextContent | JSONCon
     try:
         # Validate required parameters
         _validate_required_params(arguments, [
-            'provider', 'api_key', 'interests', 'skill_level', 'resources', 'time_frame'
+            'interests', 'skill_level', 'resources', 'time_frame'
         ])
         
         provider, api_key = _get_provider_and_key(arguments)
@@ -88,7 +116,7 @@ async def structure_idea(arguments: Dict[str, Any]) -> List[TextContent | JSONCo
     """
     try:
         # Validate required parameters
-        _validate_required_params(arguments, ['provider', 'api_key', 'user_idea'])
+        _validate_required_params(arguments, ['user_idea'])
         
         provider, api_key = _get_provider_and_key(arguments)
         temperature = _get_temperature(arguments)
@@ -110,7 +138,7 @@ async def literature_review(arguments: Dict[str, Any]) -> List[TextContent | JSO
     """
     try:
         # Validate required parameters
-        _validate_required_params(arguments, ['provider', 'api_key', 'proposal_json'])
+        _validate_required_params(arguments, ['proposal_json'])
         
         provider, api_key = _get_provider_and_key(arguments)
         temperature = _get_temperature(arguments)
@@ -138,7 +166,7 @@ async def expert_feedback(arguments: Dict[str, Any]) -> List[TextContent | JSONC
     """
     try:
         # Validate required parameters
-        _validate_required_params(arguments, ['provider', 'api_key', 'proposal_json'])
+        _validate_required_params(arguments, ['proposal_json'])
         
         provider, api_key = _get_provider_and_key(arguments)
         temperature = _get_temperature(arguments)
@@ -167,7 +195,7 @@ async def improve_idea(arguments: Dict[str, Any]) -> List[TextContent | JSONCont
     try:
         # Validate required parameters
         _validate_required_params(arguments, [
-            'provider', 'api_key', 'original_proposal_json', 'reflection_json'
+            'original_proposal_json', 'reflection_json'
         ])
         
         provider, api_key = _get_provider_and_key(arguments)
@@ -212,7 +240,7 @@ async def full_pipeline(arguments: Dict[str, Any]) -> List[TextContent | JSONCon
     """
     try:
         # Validate required parameters
-        _validate_required_params(arguments, ['provider', 'api_key', 'user_idea'])
+        _validate_required_params(arguments, ['user_idea'])
         
         provider, api_key = _get_provider_and_key(arguments)
         temperature = _get_temperature(arguments)
@@ -267,11 +295,8 @@ async def list_tools() -> ListToolsResult:
                         "provider": {
                             "type": "string",
                             "enum": ["google", "azure", "claude"],
-                            "description": "The LLM provider"
-                        },
-                        "api_key": {
-                            "type": "string",
-                            "description": "API key for the selected provider"
+                            "default": "google",
+                            "description": "The LLM provider to use"
                         },
                         "temperature": {
                             "type": "number",
@@ -295,7 +320,7 @@ async def list_tools() -> ListToolsResult:
                             "description": "Project time frame (e.g., '1 year', '6 months')"
                         }
                     },
-                    "required": ["provider", "api_key", "interests", "skill_level", "resources", "time_frame"]
+                    "required": ["interests", "skill_level", "resources", "time_frame"]
                 }
             ),
             Tool(
@@ -307,11 +332,8 @@ async def list_tools() -> ListToolsResult:
                         "provider": {
                             "type": "string",
                             "enum": ["google", "azure", "claude"],
-                            "description": "The LLM provider"
-                        },
-                        "api_key": {
-                            "type": "string",
-                            "description": "API key for the selected provider"
+                            "default": "google",
+                            "description": "The LLM provider to use"
                         },
                         "temperature": {
                             "type": "number",
@@ -323,7 +345,7 @@ async def list_tools() -> ListToolsResult:
                             "description": "The raw user idea string to structure"
                         }
                     },
-                    "required": ["provider", "api_key", "user_idea"]
+                    "required": ["user_idea"]
                 }
             ),
             Tool(
@@ -335,11 +357,8 @@ async def list_tools() -> ListToolsResult:
                         "provider": {
                             "type": "string",
                             "enum": ["google", "azure", "claude"],
-                            "description": "The LLM provider"
-                        },
-                        "api_key": {
-                            "type": "string",
-                            "description": "API key for the selected provider"
+                            "default": "google",
+                            "description": "The LLM provider to use"
                         },
                         "temperature": {
                             "type": "number",
@@ -351,7 +370,7 @@ async def list_tools() -> ListToolsResult:
                             "description": "Research proposal as JSON string or object"
                         }
                     },
-                    "required": ["provider", "api_key", "proposal_json"]
+                    "required": ["proposal_json"]
                 }
             ),
             Tool(
@@ -363,11 +382,8 @@ async def list_tools() -> ListToolsResult:
                         "provider": {
                             "type": "string",
                             "enum": ["google", "azure", "claude"],
-                            "description": "The LLM provider"
-                        },
-                        "api_key": {
-                            "type": "string",
-                            "description": "API key for the selected provider"
+                            "default": "google",
+                            "description": "The LLM provider to use"
                         },
                         "temperature": {
                             "type": "number",
@@ -379,7 +395,7 @@ async def list_tools() -> ListToolsResult:
                             "description": "Research proposal as JSON string or object"
                         }
                     },
-                    "required": ["provider", "api_key", "proposal_json"]
+                    "required": ["proposal_json"]
                 }
             ),
             Tool(
@@ -391,11 +407,8 @@ async def list_tools() -> ListToolsResult:
                         "provider": {
                             "type": "string",
                             "enum": ["google", "azure", "claude"],
-                            "description": "The LLM provider"
-                        },
-                        "api_key": {
-                            "type": "string",
-                            "description": "API key for the selected provider"
+                            "default": "google",
+                            "description": "The LLM provider to use"
                         },
                         "temperature": {
                             "type": "number",
@@ -415,7 +428,7 @@ async def list_tools() -> ListToolsResult:
                             "description": "Literature review feedback as JSON string or object (optional)"
                         }
                     },
-                    "required": ["provider", "api_key", "original_proposal_json", "reflection_json"]
+                    "required": ["original_proposal_json", "reflection_json"]
                 }
             ),
             Tool(
@@ -427,11 +440,8 @@ async def list_tools() -> ListToolsResult:
                         "provider": {
                             "type": "string",
                             "enum": ["google", "azure", "claude"],
-                            "description": "The LLM provider"
-                        },
-                        "api_key": {
-                            "type": "string",
-                            "description": "API key for the selected provider"
+                            "default": "google",
+                            "description": "The LLM provider to use"
                         },
                         "temperature": {
                             "type": "number",
@@ -443,7 +453,7 @@ async def list_tools() -> ListToolsResult:
                             "description": "The raw user idea to process through the full pipeline"
                         }
                     },
-                    "required": ["provider", "api_key", "user_idea"]
+                    "required": ["user_idea"]
                 }
             )
         ]
@@ -451,6 +461,9 @@ async def list_tools() -> ListToolsResult:
 
 async def main():
     """Main entry point for the MCP server."""
+    # Load API keys on startup
+    _load_api_keys()
+    
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,
