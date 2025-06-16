@@ -26,7 +26,7 @@ from reflection_agent import AstronomyReflectionAgent, ProposalFeedback
 from llm_client import LLMClient
 
 # Global server instance
-server = Server("astronomy-research-assistant")
+server = Server("astronomy-idea-assistant")
 
 # Global API key storage
 API_KEYS = {
