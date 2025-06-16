@@ -1,6 +1,6 @@
 # AI Astronomy Idea Assistant
 
-An AI agent that collaborate with human astronomers generate and refine research ideas through iterative feedback and analysis. We also provide an MCP interface that allows our functionalities to be incorporated into a larger agentic system. 
+An AI agent that collaborate with human astronomers generate and refine research ideas through iterative feedback and analysis. The human-user interface is available at https://astro-agent.streamlit.app/. We also provide an MCP interface that allows our functionalities to be incorporated into a larger agentic system. 
 
 ## Overview
 
@@ -11,7 +11,23 @@ This agent is a research teammate, transforming rough concepts into structured, 
 
 In both modes, the system uses a pipeline of specialized AI agents to structure the idea, review relevant literature, provide expert feedback, and present an improved proposal.
 
-> **Recommendation**: We recommend using a powerful, up-to-date model like Google Gemini 1.5 Pro or Claude 3.5 Sonnet as the LLM backbone for this application.
+## Key Features
+
+- **Conversational Memory**: In Iteration Mode, the assistant remembers the last proposal and refines it based on your feedback, creating a continuous conversational loop.
+- **Dual Modes of Operation**: Choose between refining your own idea (`I have an idea`) or having the AI generate one for you (`Let AI take over`).
+- **Idea Structuring & Generation**: The AI can either formalize your concept or generate a new one, complete with a research question, methodology, and expected outcomes.
+- **Scientific Evaluation**: An expert AI agent reviews the proposal, providing detailed feedback on its scientific validity, methodological soundness, and feasibility.
+- **Automated Literature Review**: The system searches recent scientific papers to assess the novelty of the idea and provides context from existing research.
+- **Context-Aware Generation**: In Generation Mode, you can provide your skill level, interests, and available resources to receive tailored ideas.
+
+## System Architecture
+
+The application consists of three primary AI agents working in a pipeline:
+
+1.  **Idea Agent**: Takes the user's raw input, structures it into a formal research concept, generates new ideas, and refines existing ideas based on feedback.
+2.  **Literature Agent**: Conducts a literature search on Semantic Scholar to analyze the novelty of the structured idea.
+3.  **Reflection Agent**: Evaluates the structured idea with the critical eye of an experienced astronomy professor, providing expert feedback.
+
 
 ## MCP Server
 
@@ -92,22 +108,6 @@ The MCP server provides six primary tools:
 
 For detailed MCP server documentation, examples, and troubleshooting, see [`MCP_README.md`](MCP_README.md) and [`mcp_example.py`](mcp_example.py).
 
-## Key Features
-
-- **Conversational Memory**: In Iteration Mode, the assistant remembers the last proposal and refines it based on your feedback, creating a continuous conversational loop.
-- **Dual Modes of Operation**: Choose between refining your own idea (`I have an idea`) or having the AI generate one for you (`Let AI take over`).
-- **Idea Structuring & Generation**: The AI can either formalize your concept or generate a new one, complete with a research question, methodology, and expected outcomes.
-- **Scientific Evaluation**: An expert AI agent reviews the proposal, providing detailed feedback on its scientific validity, methodological soundness, and feasibility.
-- **Automated Literature Review**: The system searches recent scientific papers to assess the novelty of the idea and provides context from existing research.
-- **Context-Aware Generation**: In Generation Mode, you can provide your skill level, interests, and available resources to receive tailored ideas.
-
-## System Architecture
-
-The application consists of three primary AI agents working in a pipeline:
-
-1.  **Idea Agent**: Takes the user's raw input, structures it into a formal research concept, generates new ideas, and refines existing ideas based on feedback.
-2.  **Literature Agent**: Conducts a literature search on Semantic Scholar to analyze the novelty of the structured idea.
-3.  **Reflection Agent**: Evaluates the structured idea with the critical eye of an experienced astronomy professor, providing expert feedback.
 
 ## Setup Instructions
 
