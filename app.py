@@ -381,31 +381,6 @@ def display_expert_feedback(feedback: ProposalFeedback):
             st.markdown(f"**Feasibility:** {feedback.feasibility_assessment}")
 
 
-def format_response_for_history(
-    structured_idea: Optional[Dict], 
-    literature_feedback: Optional[LiteratureFeedback], 
-    reflection: Optional[ProposalFeedback],
-    improved_idea: Optional[Dict]
-) -> str:
-    """Formats the structured data into a single markdown string for chat history."""
-    if not structured_idea:
-        return "Sorry, I was unable to process your idea."
-
-    history = []
-    history.append("### 💡 Structured Idea\n" + json.dumps(structured_idea, indent=2))
-    
-    if literature_feedback:
-        history.append("### 📚 Literature Review\n" + json.dumps(asdict(literature_feedback), indent=2))
-
-    if reflection:
-        history.append("### 🤔 Expert Feedback\n" + json.dumps(asdict(reflection), indent=2))
-        
-    if improved_idea:
-        history.append("### 🚀 Improved Proposal\n" + json.dumps(improved_idea, indent=2))
-        
-    return "\n\n---\n\n".join(history)
-
-
 def main():
     """Main Streamlit application"""
     st.set_page_config(
@@ -511,9 +486,9 @@ def main():
                     st.markdown("---")
                     display_improved_proposal(improved_idea)
                     
-                    # Format the complete response for storage in history
-                    history_content = format_response_for_history(structured_idea, literature_feedback, reflection, improved_idea)
-                    st.session_state.messages.append({"role": "assistant", "content": history_content})
+                    # Store a clean confirmation message in history instead of raw data
+                    confirmation_message = "Here's the analysis of your idea. You can provide feedback in the chat to refine it further."
+                    st.session_state.messages.append({"role": "assistant", "content": confirmation_message})
                 else:
                     error_message = "I'm sorry, I encountered an error and couldn't process your request. Please try rephrasing your idea or check the application logs."
                     st.error(error_message)
@@ -534,8 +509,8 @@ def main():
                     st.markdown("---")
                     display_improved_proposal(improved_idea)
                     
-                    # Format the complete response for storage in history
-                    history_content = format_response_for_history(structured_idea, literature_feedback, reflection, improved_idea)
+                    # Store a clean confirmation message in history instead of raw data
+                    history_content = "Here is the generated idea and analysis. You can now switch to 'I have an idea' mode to start refining it."
                     st.session_state.messages.append({"role": "assistant", "content": history_content})
                 else:
                     error_message = "I'm sorry, I encountered an error and couldn't generate an idea. Please try adjusting the context in the sidebar or try again."
