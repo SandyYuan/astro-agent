@@ -52,71 +52,68 @@ class LiteratureAgent:
         except ValueError as e:
             raise ValueError(f"Error initializing LiteratureAgent's LLM client: {str(e)}")
     
-    def _simplify_query_with_llm(self, research_question: str) -> str:
-        """Uses an LLM to distill a research question into a keyword query."""
-        prompt = f"""
-        Distill the following astronomy research question into a concise search query of 4-6 keywords.
-        Focus on the most specific and relevant technical terms (objects, methods, phenomena).
-        Return only the space-separated keywords.
-
-        Research Question: "{research_question}"
-        
-        Search Query:
-        """
+    def simplify_query_with_llm(self, query: str) -> str:
+        """Use the LLM to simplify and improve the search query."""
         try:
-            print("Simplifying query with LLM...")
-            simplified_query = self.llm_client.generate(prompt).strip()
-            print(f"Simplified query: {simplified_query}")
-            return simplified_query
+            # print("Simplifying query with LLM...")
+            simplified_query = self.llm_client.generate(
+                f"Convert this research idea into 3-5 key search terms for academic paper search: {query}"
+            )
+            # print(f"Simplified query: {simplified_query}")
+            return simplified_query.strip()
         except Exception as e:
-            print(f"Error simplifying query with LLM: {e}. Falling back to original query.")
-            return research_question
-
-    def _run_semantic_scholar_search(self, query: str, max_papers: int = 10) -> List[Dict[str, Any]]:
-        """Performs a direct API search on Semantic Scholar and returns a list of papers."""
+            # print(f"Error simplifying query with LLM: {e}. Falling back to original query.")
+            return query
+    
+    def search_semantic_scholar(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """Search Semantic Scholar using their API."""
+        # print(f"Searching Semantic Scholar via direct API for: {query}")
+        
+        # Clean and prepare the query
+        # Remove quotes and clean up the query for the API
+        clean_query = query.replace('"', '').replace("'", "").strip()
+        
+        # Semantic Scholar API endpoint
+        url = "https://api.semanticscholar.org/graph/v1/paper/search"
+        
+        # Parameters for the search
+        params = {
+            'query': clean_query,
+            'limit': min(limit, 100),  # API limit is 100
+            'fields': 'title,abstract,authors,year,citationCount,url,paperId'
+        }
+        
         try:
-            print(f"Searching Semantic Scholar via direct API for: {query}")
+            # print(f"Querying Semantic Scholar API with a 30-second timeout...")
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
             
-            api_url = "https://api.semanticscholar.org/graph/v1/paper/search"
-            
-            # Specify fields to fetch to speed up the query
-            fields_to_return = ['title', 'abstract', 'authors', 'year', 'publicationDate', 'url']
-            
-            params = {
-                'query': query,
-                'limit': max_papers,
-                'fields': ",".join(fields_to_return)
-            }
-            
-            headers = {'Accept': 'application/json'}
-
-            print(f"Querying Semantic Scholar API with a 30-second timeout...")
-            response = requests.get(api_url, params=params, headers=headers, timeout=30)
-            response.raise_for_status() # Will raise an exception for bad status codes
-            
-            results = response.json()
-            print("Search complete. Processing results...")
+            # print("Search complete. Processing results...")
+            data = response.json()
             
             papers = []
-            if 'data' in results:
-                for item in results['data']:
-                    papers.append({
-                        'title': item.get('title'),
-                        'authors': ", ".join(author['name'] for author in item.get('authors', [])),
-                        'summary': item.get('abstract') or 'N/A',
-                        'published': str(item.get('publicationDate')),
-                        'year': item.get('year'),
-                        'url': item.get('url'),
-                        'source': 'Semantic Scholar'
-                    })
-            print(f"Found {len(papers)} papers on Semantic Scholar.")
+            if 'data' in data and data['data']:
+                for paper in data['data']:
+                    # Only include papers with abstracts
+                    if paper.get('abstract'):
+                        papers.append({
+                            'title': paper.get('title', 'Unknown Title'),
+                            'abstract': paper.get('abstract', 'No abstract available'),
+                            'authors': [author.get('name', 'Unknown') for author in paper.get('authors', [])],
+                            'year': paper.get('year', 'Unknown'),
+                            'citation_count': paper.get('citationCount', 0),
+                            'url': paper.get('url', ''),
+                            'paper_id': paper.get('paperId', '')
+                        })
+            
+            # print(f"Found {len(papers)} papers on Semantic Scholar.")
             return papers
             
         except requests.exceptions.RequestException as e:
-            print(f"An error occurred during Semantic Scholar API request: {e}")
+            # print(f"An error occurred during Semantic Scholar API request: {e}")
             return []
         except Exception as e:
-            print(f"An error occurred during Semantic Scholar search: {e}")
+            # print(f"An error occurred during Semantic Scholar search: {e}")
             return []
 
     def run_literature_search(self, research_idea: Dict[str, Any], max_papers: int = 10) -> LiteratureFeedback:
@@ -134,29 +131,26 @@ class LiteratureAgent:
             return self._create_basic_review([])
         
         # Simplify the query for better API results
-        search_query = self._simplify_query_with_llm(original_query)
+        search_query = self.simplify_query_with_llm(original_query)
 
         # Run Semantic Scholar Search
-        all_papers = self._run_semantic_scholar_search(search_query, max_papers=max_papers)
+        all_papers = self.search_semantic_scholar(search_query, max_papers)
         
         # Analyze results
         if not all_papers:
-            print("No papers found from any source.")
-            return self._create_basic_review([])
-
-        print(f"Total papers found: {len(all_papers)}. Starting literature review...")
-        return self._generate_literature_review(research_idea, all_papers)
-
-    def _generate_literature_review(self, idea: Dict[str, Any], papers: List[Dict[str, Any]]) -> LiteratureFeedback:
-        """Generate a literature review using an LLM."""
+            # print("No papers found from any source.")
+            return LiteratureFeedback(similar_papers=[], novelty_assessment="Could not generate an AI-powered analysis. Review the papers manually.", differentiation_suggestions=["Consider refining your search terms to find more relevant literature."], emerging_trends="Not available.", novelty_score=0.0, recommended_improvements=[], summary="Automated literature analysis failed.")
         
+        # print(f"Total papers found: {len(all_papers)}. Starting literature review...")
+        
+        # Prepare paper information for LLM
         papers_info = []
-        for paper in papers:
+        for paper in all_papers[:max_papers]:  # Limit for prompt size
             papers_info.append(
                 f"- Title: {paper['title']}\n"
-                f"  Authors: {paper['authors']}\n"
+                f"  Authors: {', '.join(paper['authors'])}\n"
                 f"  Year: {paper['year']}\n"
-                f"  Abstract: {paper['summary'][:500]}...\n" # Truncate for prompt
+                f"  Abstract: {paper['abstract'][:500]}...\n" # Truncate for prompt
             )
         
         papers_text = "\n".join(papers_info) if papers_info else "No relevant papers were found in the initial search."
@@ -165,9 +159,9 @@ class LiteratureAgent:
 You are an expert astronomy researcher tasked with evaluating the novelty of a student's research idea based on recently published papers.
 
 **Student's Research Idea:**
-- Title: {idea.get('title', 'N/A')}
-- Research Question: {idea.get('idea', {}).get('Research Question', 'N/A')}
-- Proposed Methodology: {idea.get('idea', {}).get('Methodology', 'N/A')}
+- Title: {research_idea.get('title', 'N/A')}
+- Research Question: {research_idea.get('idea', {}).get('Research Question', 'N/A')}
+- Proposed Methodology: {research_idea.get('idea', {}).get('Methodology', 'N/A')}
 
 **Relevant Recent Papers:**
 {papers_text}
@@ -194,7 +188,7 @@ Your response MUST be a single JSON object with the following structure. Do not 
             
             # Combine with paper details for the final object
             return LiteratureFeedback(
-                similar_papers=papers,
+                similar_papers=all_papers,
                 novelty_score=review_json.get("novelty_score", 0),
                 novelty_assessment=review_json.get("novelty_assessment", "N/A"),
                 differentiation_suggestions=review_json.get("differentiation_suggestions", []),
@@ -204,7 +198,7 @@ Your response MUST be a single JSON object with the following structure. Do not 
             )
         except Exception as e:
             print(f"Error parsing literature review: {str(e)}")
-            return self._create_basic_review(papers)
+            return self._create_basic_review(all_papers)
 
     def _create_basic_review(self, papers: List[Dict[str, Any]]) -> LiteratureFeedback:
         """Create a basic review when analysis fails"""

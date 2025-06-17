@@ -84,8 +84,8 @@ Your response MUST be a single JSON object with the exact following structure.
             self.current_idea = json_response
             return self.current_idea
         except Exception as e:
-            print(f"An error occurred while generating an idea: {e}")
-            return {{ "error": "Failed to generate research idea.", "details": str(e) }}
+            # print(f"An error occurred while generating an idea: {e}")
+            return {"error": "Failed to generate research idea.", "details": str(e)}
     
     def structure_and_rephrase_idea(self, user_idea: str) -> Dict[str, Any]:
         """
@@ -122,7 +122,7 @@ Your response MUST be a single JSON object. Do not include any text outside the 
             self.current_idea = json_response
             return self.current_idea
         except Exception as e:
-            print(f"An error occurred while structuring the idea: {e}")
+            # print(f"An error occurred while structuring the idea: {e}")
             # In case of a failure, return a structured error message
             return {
                 "error": "Failed to structure the research idea.",
@@ -146,7 +146,7 @@ Your response MUST be a single JSON object. Do not include any text outside the 
         Now, generate the new, updated proposal based on this feedback.
         """
         
-        print("Refining idea with user feedback...")
+        # print("Refining idea with user feedback...")
         response_text = self.llm_client.generate(prompt)
         
         # Extract the JSON from the response
@@ -199,8 +199,8 @@ Revise your original proposal to directly address all the feedback. Create an im
             self.current_idea = improved_idea # Update the agent's state
             return improved_idea
         except Exception as e:
-            print(f"An error occurred while improving the idea: {e}")
-            return {{"error": "Failed to improve the research idea.", "details": str(e)}}
+            # print(f"An error occurred while improving the idea: {e}")
+            return self.current_idea  # Return original if improvement fails
 
 if __name__ == "__main__":
     # Example usage
