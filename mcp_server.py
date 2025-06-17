@@ -90,7 +90,7 @@ def _parse_json_input(data: Any) -> Dict[str, Any]:
 # --- MCP Tool Implementations ---
 
 @server.call_tool()
-async def generate_idea(arguments: Dict[str, Any]) -> List[types.TextContent]:
+async def generate_idea(name: str, arguments: dict | None) -> List[types.TextContent]:
     """
     Generates a novel and structured astronomy research idea tailored to a student's profile.
     
@@ -122,24 +122,27 @@ async def generate_idea(arguments: Dict[str, Any]) -> List[types.TextContent]:
     Returns:
     JSON object containing the complete structured research proposal with all fields populated.
     """
+    # Convert arguments to the expected format
+    args = arguments or {}
+    
     try:
         # Validate required parameters
-        _validate_required_params(arguments, [
+        _validate_required_params(args, [
             'interests', 'skill_level', 'resources', 'time_frame'
         ])
         
-        provider, api_key = _get_provider_and_key(arguments)
-        temperature = _get_temperature(arguments)
+        provider, api_key = _get_provider_and_key(args)
+        temperature = _get_temperature(args)
         
         agent = IdeaAgent(api_key=api_key, provider=provider, temperature=temperature)
         
-        interests = [i.strip() for i in arguments['interests'].split(',')]
-        resources = [r.strip() for r in arguments['resources'].split(',')]
+        interests = [i.strip() for i in args['interests'].split(',')]
+        resources = [r.strip() for r in args['resources'].split(',')]
         
         result = agent.generate_initial_idea(
             student_interests=interests,
-            skill_level=arguments['skill_level'],
-            time_frame=arguments['time_frame'],
+            skill_level=args['skill_level'],
+            time_frame=args['time_frame'],
             available_resources=resources
         )
         
@@ -149,7 +152,7 @@ async def generate_idea(arguments: Dict[str, Any]) -> List[types.TextContent]:
         return [types.TextContent(type="text", text=f"Error generating idea: {str(e)}")]
 
 @server.call_tool()
-async def structure_idea(arguments: Dict[str, Any]) -> List[types.TextContent]:
+async def structure_idea(name: str, arguments: dict | None) -> List[types.TextContent]:
     """
     Transforms a raw, unstructured user idea into a formal, scientifically-grounded research proposal.
     
@@ -186,23 +189,27 @@ async def structure_idea(arguments: Dict[str, Any]) -> List[types.TextContent]:
     JSON object containing the structured research proposal with standardized fields.
     Use this output for subsequent literature review and expert feedback steps.
     """
+    # Convert arguments to the expected format
+    args = arguments or {}
+    
     try:
         # Validate required parameters
-        _validate_required_params(arguments, ['user_idea'])
+        _validate_required_params(args, ['user_idea'])
         
-        provider, api_key = _get_provider_and_key(arguments)
-        temperature = _get_temperature(arguments)
+        provider, api_key = _get_provider_and_key(args)
+        temperature = _get_temperature(args)
         
         agent = IdeaAgent(api_key=api_key, provider=provider, temperature=temperature)
-        result = agent.structure_and_rephrase_idea(user_idea=arguments['user_idea'])
+        result = agent.structure_and_rephrase_idea(user_idea=args['user_idea'])
         
         return [types.TextContent(type="text", text=json.dumps(result))]
         
     except Exception as e:
+        import traceback
         return [types.TextContent(type="text", text=f"Error structuring idea: {str(e)}")]
 
 @server.call_tool()
-async def literature_review(arguments: Dict[str, Any]) -> List[types.TextContent]:
+async def literature_review(name: str, arguments: dict | None) -> List[types.TextContent]:
     """
     Performs comprehensive literature search and novelty assessment for a research proposal.
     
@@ -237,15 +244,18 @@ async def literature_review(arguments: Dict[str, Any]) -> List[types.TextContent
     - Specific suggestions for research differentiation
     - Recommended modifications to improve novelty
     """
+    # Convert arguments to the expected format
+    args = arguments or {}
+    
     try:
         # Validate required parameters
-        _validate_required_params(arguments, ['proposal_json'])
+        _validate_required_params(args, ['proposal_json'])
         
-        provider, api_key = _get_provider_and_key(arguments)
-        temperature = _get_temperature(arguments)
+        provider, api_key = _get_provider_and_key(args)
+        temperature = _get_temperature(args)
         
         # Parse proposal if it's a JSON string
-        proposal = _parse_json_input(arguments['proposal_json'])
+        proposal = _parse_json_input(args['proposal_json'])
         
         agent = LiteratureAgent(api_key=api_key, provider=provider, temperature=temperature)
         result = agent.run_literature_search(research_idea=proposal)
@@ -256,7 +266,7 @@ async def literature_review(arguments: Dict[str, Any]) -> List[types.TextContent
         return [types.TextContent(type="text", text=f"Error performing literature review: {str(e)}")]
 
 @server.call_tool()
-async def expert_feedback(arguments: Dict[str, Any]) -> List[types.TextContent]:
+async def expert_feedback(name: str, arguments: dict | None) -> List[types.TextContent]:
     """
     Provides comprehensive expert peer review feedback simulating evaluation by an experienced astronomy professor.
     
@@ -292,15 +302,18 @@ async def expert_feedback(arguments: Dict[str, Any]) -> List[types.TextContent]:
     - Identified strengths and weaknesses
     - Recommendations for next steps
     """
+    # Convert arguments to the expected format
+    args = arguments or {}
+    
     try:
         # Validate required parameters
-        _validate_required_params(arguments, ['proposal_json'])
+        _validate_required_params(args, ['proposal_json'])
         
-        provider, api_key = _get_provider_and_key(arguments)
-        temperature = _get_temperature(arguments)
+        provider, api_key = _get_provider_and_key(args)
+        temperature = _get_temperature(args)
         
         # Parse proposal if it's a JSON string
-        proposal = _parse_json_input(arguments['proposal_json'])
+        proposal = _parse_json_input(args['proposal_json'])
         
         agent = AstronomyReflectionAgent(api_key=api_key, provider=provider, temperature=temperature)
         result = agent.provide_feedback(research_proposal=proposal)
@@ -311,7 +324,7 @@ async def expert_feedback(arguments: Dict[str, Any]) -> List[types.TextContent]:
         return [types.TextContent(type="text", text=f"Error generating expert feedback: {str(e)}")]
 
 @server.call_tool()
-async def improve_idea(arguments: Dict[str, Any]) -> List[types.TextContent]:
+async def improve_idea(name: str, arguments: dict | None) -> List[types.TextContent]:
     """
     Generates an enhanced version of a research proposal by incorporating expert feedback and literature insights.
     
@@ -351,17 +364,20 @@ async def improve_idea(arguments: Dict[str, Any]) -> List[types.TextContent]:
     - Strengthened scientific justification
     - Better integration with current research landscape
     """
+    # Convert arguments to the expected format
+    args = arguments or {}
+    
     try:
         # Validate required parameters
-        _validate_required_params(arguments, ['original_proposal_json', 'reflection_json'])
+        _validate_required_params(args, ['original_proposal_json', 'reflection_json'])
         
-        provider, api_key = _get_provider_and_key(arguments)
-        temperature = _get_temperature(arguments)
+        provider, api_key = _get_provider_and_key(args)
+        temperature = _get_temperature(args)
         
         # Parse JSON inputs
-        original_proposal = _parse_json_input(arguments['original_proposal_json'])
-        expert_feedback = _parse_json_input(arguments['reflection_json'])
-        literature_feedback = _parse_json_input(arguments.get('literature_json', {}))
+        original_proposal = _parse_json_input(args['original_proposal_json'])
+        expert_feedback = _parse_json_input(args['reflection_json'])
+        literature_feedback = _parse_json_input(args.get('literature_json', {}))
         
         agent = IdeaAgent(api_key=api_key, provider=provider, temperature=temperature)
         result = agent.improve_idea(reflection_feedback=expert_feedback, literature_feedback=literature_feedback)
@@ -372,7 +388,7 @@ async def improve_idea(arguments: Dict[str, Any]) -> List[types.TextContent]:
         return [types.TextContent(type="text", text=f"Error improving idea: {str(e)}")]
 
 @server.call_tool()
-async def full_pipeline(arguments: Dict[str, Any]) -> List[types.TextContent]:
+async def full_pipeline(name: str, arguments: dict | None) -> List[types.TextContent]:
     """
     Executes the complete end-to-end research idea development pipeline in a single operation.
     
@@ -427,9 +443,12 @@ async def full_pipeline(arguments: Dict[str, Any]) -> List[types.TextContent]:
     - improved_proposal: Final enhanced proposal incorporating all feedback
     - pipeline_summary: Overview of improvements and key insights
     """
+    # Convert arguments to the expected format
+    args = arguments or {}
+    
     try:
-        provider, api_key = _get_provider_and_key(arguments)
-        temperature = _get_temperature(arguments)
+        provider, api_key = _get_provider_and_key(args)
+        temperature = _get_temperature(args)
         
         # Initialize agents
         idea_agent = IdeaAgent(api_key=api_key, provider=provider, temperature=temperature)
@@ -437,19 +456,19 @@ async def full_pipeline(arguments: Dict[str, Any]) -> List[types.TextContent]:
         reflection_agent = AstronomyReflectionAgent(api_key=api_key, provider=provider, temperature=temperature)
         
         # Step 1: Generate or structure the initial proposal
-        if 'user_idea' in arguments:
+        if 'user_idea' in args:
             # Structure existing idea
-            structured_proposal = idea_agent.structure_and_rephrase_idea(user_idea=arguments['user_idea'])
+            structured_proposal = idea_agent.structure_and_rephrase_idea(user_idea=args['user_idea'])
         else:
             # Generate new idea
-            _validate_required_params(arguments, ['interests', 'skill_level', 'resources', 'time_frame'])
-            interests = [i.strip() for i in arguments['interests'].split(',')]
-            resources = [r.strip() for r in arguments['resources'].split(',')]
+            _validate_required_params(args, ['interests', 'skill_level', 'resources', 'time_frame'])
+            interests = [i.strip() for i in args['interests'].split(',')]
+            resources = [r.strip() for r in args['resources'].split(',')]
             
             structured_proposal = idea_agent.generate_initial_idea(
                 student_interests=interests,
-                skill_level=arguments['skill_level'],
-                time_frame=arguments['time_frame'],
+                skill_level=args['skill_level'],
+                time_frame=args['time_frame'],
                 available_resources=resources
             )
         
